@@ -1,0 +1,104 @@
+@baseUrl = http://localhost/FinalProject-BattleShip/public
+@gameId = 1
+@player1 = 1
+@player2 = 2
+
+### RESET SERVER
+POST {{baseUrl}}/api/reset
+Content-Type: application/json
+
+
+### CREATE PLAYER 1
+POST {{baseUrl}}/api/players
+Content-Type: application/json
+
+{
+  "username": "player_one"
+}
+
+
+### CREATE PLAYER 2
+POST {{baseUrl}}/api/players
+Content-Type: application/json
+
+{
+  "username": "player_two"
+}
+
+
+### GET PLAYER 1 STATS
+GET {{baseUrl}}/api/players/{{player1}}/stats
+Content-Type: application/json
+
+
+### GET PLAYER 2 STATS
+GET {{baseUrl}}/api/players/{{player2}}/stats
+Content-Type: application/json
+
+
+### CREATE GAME
+POST {{baseUrl}}/api/games
+Content-Type: application/json
+
+{
+  "creator_id": {{player1}},
+  "grid_size": 8,
+  "max_players": 4
+}
+
+
+### GET GAME INFO
+GET {{baseUrl}}/api/games/{{gameId}}
+Content-Type: application/json
+
+
+### PLAYER 2 JOINS GAME
+POST {{baseUrl}}/api/games/{{gameId}}/join
+Content-Type: application/json
+
+{
+  "player_id": {{player2}}
+}
+
+
+### GET GAME INFO AFTER JOIN
+GET {{baseUrl}}/api/games/{{gameId}}
+Content-Type: application/json
+
+
+### PLAYER 1 PLACE SHIPS
+POST {{baseUrl}}/api/games/{{gameId}}/place
+Content-Type: application/json
+
+{
+  "player_id": {{player1}},
+  "ships": [
+    { "row": 0, "col": 0 },
+    { "row": 1, "col": 0 },
+    { "row": 2, "col": 0 }
+  ]
+}
+
+
+### PLAYER 2 PLACE SHIPS
+POST {{baseUrl}}/api/games/{{gameId}}/place
+Content-Type: application/json
+
+{
+  "player_id": {{player2}},
+  "ships": [
+    { "row": 3, "col": 3 },
+    { "row": 4, "col": 3 },
+    { "row": 5, "col": 3 }
+  ]
+}
+
+
+### GET PLAYER 1 STATS AGAIN
+GET {{baseUrl}}/api/players/{{player1}}/stats
+Content-Type: application/json
+
+
+### GET PLAYER 2 STATS AGAIN
+GET {{baseUrl}}/api/players/{{player2}}/stats
+Content-Type: application/json
