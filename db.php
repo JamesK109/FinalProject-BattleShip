@@ -6,8 +6,8 @@ function getDB() {
 
     if ($db === null) {
 
-        $dbFile = __DIR__ . "/battleship.db";
-        $db = new PDO("sqlite:" . $dbFile);
+        $dbFile = __DIR__ . '/battleship.db';
+        $db = new PDO('sqlite:' . $dbFile);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         initializeSchema($db);
@@ -17,6 +17,8 @@ function getDB() {
 }
 
 function initializeSchema($db) {
+
+    $db->exec("PRAGMA foreign_keys = ON;");
 
     $db->exec("
         CREATE TABLE IF NOT EXISTS players (
@@ -37,7 +39,8 @@ function initializeSchema($db) {
             grid_size INTEGER,
             max_players INTEGER,
             status TEXT DEFAULT 'waiting',
-            current_turn_index INTEGER DEFAULT 0
+            current_turn_index INTEGER DEFAULT 0,
+            winner_id INTEGER DEFAULT NULL
         );
     ");
 
@@ -55,7 +58,8 @@ function initializeSchema($db) {
             game_id INTEGER,
             player_id INTEGER,
             row INTEGER,
-            col INTEGER
+            col INTEGER,
+            PRIMARY KEY (game_id, player_id, row, col)
         );
     ");
 
@@ -64,10 +68,23 @@ function initializeSchema($db) {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             game_id INTEGER,
             player_id INTEGER,
+            target_player_id INTEGER,
             row INTEGER,
             col INTEGER,
             result TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     ");
+
+    $columns = $db->query("PRAGMA table_info(games)")->fetchAll(PDO::FETCH_ASSOC);
+    $gameColumns = array_column($columns, 'name');
+    if (!in_array('winner_id', $gameColumns, true)) {
+        $db->exec("ALTER TABLE games ADD COLUMN winner_id INTEGER DEFAULT NULL");
+    }
+
+    $moveColumns = $db->query("PRAGMA table_info(moves)")->fetchAll(PDO::FETCH_ASSOC);
+    $moveColumnNames = array_column($moveColumns, 'name');
+    if (!in_array('target_player_id', $moveColumnNames, true)) {
+        $db->exec("ALTER TABLE moves ADD COLUMN target_player_id INTEGER DEFAULT NULL");
+    }
 }

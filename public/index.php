@@ -10,19 +10,19 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Normalize to an API-relative path regardless of whether requests come through
 // `/public/index.php`, `/public`, or a project-root index proxy.
-$scriptDir = rtrim(str_replace("\\", "/", dirname($_SERVER['SCRIPT_NAME'] ?? "")), "/");
-if ($scriptDir !== "" && str_starts_with($path, $scriptDir)) {
+$scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+if ($scriptDir !== '' && str_starts_with($path, $scriptDir)) {
     $path = substr($path, strlen($scriptDir));
 }
-if ($path === false || $path === "") {
-    $path = "/";
+if ($path === false || $path === '') {
+    $path = '/';
 }
 
-$segments = explode("/", trim($path, "/"));
+$segments = explode('/', trim($path, '/'));
 
-if (($segments[0] ?? null) !== "api") {
+if (($segments[0] ?? null) !== 'api') {
     http_response_code(404);
-    echo json_encode(["error" => "Invalid API path"]);
+    echo json_encode(['error' => 'Invalid API path']);
     exit;
 }
 
@@ -30,24 +30,35 @@ array_shift($segments);
 $resource = $segments[0] ?? null;
 
 switch ($resource) {
-
-    case "reset":
-        require __DIR__ . "/../api/reset.php";
+    case 'reset':
+        require __DIR__ . '/../api/reset.php';
         break;
 
-    case "players":
-        require __DIR__ . "/../api/players.php";
+    case 'players':
+        require __DIR__ . '/../api/players.php';
         break;
 
-    case "games":
-        if (($segments[2] ?? null) === "place") {
-            require __DIR__ . "/../api/place.php";
+    case 'games':
+        if (($segments[2] ?? null) === 'place') {
+            require __DIR__ . '/../api/place.php';
             break;
         }
-        require __DIR__ . "/../api/games.php";
+        if (($segments[2] ?? null) === 'fire') {
+            require __DIR__ . '/../api/fire.php';
+            break;
+        }
+        if (($segments[2] ?? null) === 'moves') {
+            require __DIR__ . '/../api/moves.php';
+            break;
+        }
+        require __DIR__ . '/../api/games.php';
+        break;
+
+    case 'test':
+        require __DIR__ . '/../api/test.php';
         break;
 
     default:
         http_response_code(404);
-        echo json_encode(["error"=>"Unknown endpoint"]);
+        echo json_encode(['error' => 'Unknown endpoint']);
 }
