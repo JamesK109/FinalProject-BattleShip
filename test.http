@@ -1,4 +1,4 @@
-@baseUrl = https://battleship.loosesocket.com
+@baseUrl = https://cpsc.loosesocket.com
 @gameId = 1
 @player1 = 1
 @player2 = 2

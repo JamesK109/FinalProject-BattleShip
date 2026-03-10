@@ -32,6 +32,7 @@ if (!is_array($ships) || count($ships) !== 3) {
     respond(["error"=>"must place exactly 3 ships"],400);
 }
 
+$normalizedShips = [];
 $seen = [];
 foreach ($ships as $ship) {
     if (!is_array($ship) || !array_key_exists('row', $ship) || !array_key_exists('col', $ship)) {
@@ -44,14 +45,15 @@ foreach ($ships as $ship) {
         respond(['error' => 'ship coordinates cannot overlap'], 400);
     }
     $seen[$key] = true;
+    $normalizedShips[] = ['row' => $row, 'col' => $col];
 }
 $stmt = $db->prepare("
     INSERT INTO ships(game_id,player_id,row,col)
     VALUES(?,?,?,?)
 ");
 
-foreach ($ships as $ship) {
-    $stmt->execute([$gameId, $playerId, (int)$ship['row'], (int)$ship['col']]);
+foreach ($normalizedShips as $ship) {
+    $stmt->execute([$gameId, $playerId, $ship['row'], $ship['col']]);
 }
 
 $newStatus = allPlayersPlaced($db, $gameId) ? 'active' : 'waiting';
