@@ -1,12 +1,14 @@
-@baseUrl = http://localhost/FinalProject-BattleShip/public
+@baseUrl = https://battleship.loosesocket.com
 @gameId = 1
 @player1 = 1
 @player2 = 2
+@testPassword = clemson-test-2026
 
 ### RESET SERVER
 POST {{baseUrl}}/api/reset
 Content-Type: application/json
 
+{}
 
 ### CREATE PLAYER 1
 POST {{baseUrl}}/api/players
@@ -16,7 +18,6 @@ Content-Type: application/json
   "username": "player_one"
 }
 
-
 ### CREATE PLAYER 2
 POST {{baseUrl}}/api/players
 Content-Type: application/json
@@ -25,16 +26,20 @@ Content-Type: application/json
   "username": "player_two"
 }
 
+### CREATE PLAYER WITH MISSING USERNAME (should return 400)
+POST {{baseUrl}}/api/players
+Content-Type: application/json
+
+{
+}
 
 ### GET PLAYER 1 STATS
 GET {{baseUrl}}/api/players/{{player1}}/stats
 Content-Type: application/json
 
-
 ### GET PLAYER 2 STATS
 GET {{baseUrl}}/api/players/{{player2}}/stats
 Content-Type: application/json
-
 
 ### CREATE GAME
 POST {{baseUrl}}/api/games
@@ -46,11 +51,29 @@ Content-Type: application/json
   "max_players": 4
 }
 
+### CREATE GAME WITH INVALID GRID SIZE (too small)
+POST {{baseUrl}}/api/games
+Content-Type: application/json
+
+{
+  "creator_id": {{player1}},
+  "grid_size": 4,
+  "max_players": 4
+}
+
+### CREATE GAME WITH INVALID GRID SIZE (too large)
+POST {{baseUrl}}/api/games
+Content-Type: application/json
+
+{
+  "creator_id": {{player1}},
+  "grid_size": 20,
+  "max_players": 4
+}
 
 ### GET GAME INFO
 GET {{baseUrl}}/api/games/{{gameId}}
 Content-Type: application/json
-
 
 ### PLAYER 2 JOINS GAME
 POST {{baseUrl}}/api/games/{{gameId}}/join
@@ -60,11 +83,13 @@ Content-Type: application/json
   "player_id": {{player2}}
 }
 
-
-### GET GAME INFO AFTER JOIN
-GET {{baseUrl}}/api/games/{{gameId}}
+### JOIN NONEXISTENT GAME (should return 404)
+POST {{baseUrl}}/api/games/999/join
 Content-Type: application/json
 
+{
+  "player_id": {{player2}}
+}
 
 ### PLAYER 1 PLACE SHIPS
 POST {{baseUrl}}/api/games/{{gameId}}/place
@@ -79,7 +104,6 @@ Content-Type: application/json
   ]
 }
 
-
 ### PLAYER 2 PLACE SHIPS
 POST {{baseUrl}}/api/games/{{gameId}}/place
 Content-Type: application/json
@@ -93,12 +117,72 @@ Content-Type: application/json
   ]
 }
 
+### PLAYER 1 FIRE
+POST {{baseUrl}}/api/games/{{gameId}}/fire
+Content-Type: application/json
 
-### GET PLAYER 1 STATS AGAIN
-GET {{baseUrl}}/api/players/{{player1}}/stats
+{
+  "player_id": {{player1}},
+  "row": 3,
+  "col": 3
+}
+
+### PLAYER 2 FIRE
+POST {{baseUrl}}/api/games/{{gameId}}/fire
+Content-Type: application/json
+
+{
+  "player_id": {{player2}},
+  "row": 0,
+  "col": 0
+}
+
+### OUT OF TURN FIRE (should return 403)
+POST {{baseUrl}}/api/games/{{gameId}}/fire
+Content-Type: application/json
+
+{
+  "player_id": {{player2}},
+  "row": 1,
+  "col": 1
+}
+
+### GET MOVE HISTORY
+GET {{baseUrl}}/api/games/{{gameId}}/moves
 Content-Type: application/json
 
 
-### GET PLAYER 2 STATS AGAIN
+### TEST: RESTART GAME
+POST {{baseUrl}}/api/test/games/{{gameId}}/restart
+Content-Type: application/json
+X-Test-Password: {{testPassword}}
+
+{}
+
+### TEST: PLACE SHIPS
+POST {{baseUrl}}/api/test/games/{{gameId}}/ships
+Content-Type: application/json
+X-Test-Password: {{testPassword}}
+
+{
+  "player_id": {{player1}},
+  "ships": [
+    { "row": 0, "col": 0 },
+    { "row": 1, "col": 0 },
+    { "row": 2, "col": 0 }
+  ]
+}
+
+### TEST: REVEAL BOARD
+GET {{baseUrl}}/api/test/games/{{gameId}}/board/{{player1}}
+Content-Type: application/json
+X-Test-Password: {{testPassword}}
+
+
+### GET PLAYER 1 STATS
+GET {{baseUrl}}/api/players/{{player1}}/stats
+Content-Type: application/json
+
+### GET PLAYER 2 STATS
 GET {{baseUrl}}/api/players/{{player2}}/stats
 Content-Type: application/json

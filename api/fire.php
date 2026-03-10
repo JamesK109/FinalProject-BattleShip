@@ -15,8 +15,14 @@ $playerId = requirePositiveInt($data['player_id'], 'player_id');
 $row = requireIntInRange($data['row'], 'row', 0, ((int)$game['grid_size']) - 1);
 $col = requireIntInRange($data['col'], 'col', 0, ((int)$game['grid_size']) - 1);
 
-ensurePlayerExists($db, $playerId);
-$currentMembership = ensurePlayerInGame($db, $gameId, $playerId);
+$player = fetchOne($db, 'SELECT id FROM players WHERE id = ?', [$playerId]);
+if (!$player) {
+    respond(['error' => 'invalid player'], 403);
+}
+$currentMembership = fetchOne($db, 'SELECT * FROM game_players WHERE game_id = ? AND player_id = ?', [$gameId, $playerId]);
+if (!$currentMembership) {
+    respond(['error' => 'wrong game for player'], 403);
+}
 
 if ($game['status'] === 'finished') {
     respond(['error' => 'game is already finished'], 400);
@@ -36,12 +42,12 @@ if (count($activePlayers) < 2) {
 $currentTurnIndex = (int)$game['current_turn_index'];
 $expectedPlayerId = $activePlayers[$currentTurnIndex] ?? null;
 if ($expectedPlayerId !== $playerId) {
-    respond(['error' => 'not this player\'s turn'], 400);
+    respond(['error' => 'not this player\'s turn'], 403);
 }
 
 $alreadyFired = fetchOne($db, 'SELECT id FROM moves WHERE game_id = ? AND player_id = ? AND row = ? AND col = ?', [$gameId, $playerId, $row, $col]);
 if ($alreadyFired) {
-    respond(['error' => 'player has already fired at that coordinate'], 400);
+    respond(['error' => 'player has already fired at that coordinate'], 403);
 }
 
 $targetIndex = ($currentTurnIndex + 1) % count($activePlayers);
