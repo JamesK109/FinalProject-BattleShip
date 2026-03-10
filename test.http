@@ -165,11 +165,11 @@ Content-Type: application/json
 X-Test-Password: {{testPassword}}
 
 {
-  "player_id": {{player1}},
+  "playerId": "{{player1}}",
   "ships": [
-    { "row": 0, "col": 0 },
-    { "row": 1, "col": 0 },
-    { "row": 2, "col": 0 }
+    { "type": "patrol", "coordinates": [[0,0]] },
+    { "type": "patrol", "coordinates": [[1,0]] },
+    { "type": "patrol", "coordinates": [[2,0]] }
   ]
 }
 

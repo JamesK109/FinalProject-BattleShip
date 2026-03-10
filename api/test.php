@@ -20,35 +20,71 @@ if ($method === 'POST' && $action === 'restart') {
 
 if ($method === 'POST' && $action === 'ships') {
     $data = getJsonInput();
-    requireFields($data, ['player_id', 'ships']);
-    $playerId = requirePositiveInt($data['player_id'], 'player_id');
+    $rawPlayerId = $data['playerId'] ?? ($data['player_id'] ?? null);
+    if ($rawPlayerId === null) {
+        respond(['error' => 'playerId is required'], 400);
+    }
+    $playerId = requirePositiveInt($rawPlayerId, 'playerId');
+    if (!array_key_exists('ships', $data)) {
+        respond(['error' => 'ships is required'], 400);
+    }
     $ships = $data['ships'];
+
+    if ($game['status'] !== 'waiting') {
+        respond(['error' => 'ships can only be placed before game starts'], 403);
+    }
 
     ensurePlayerExists($db, $playerId);
     ensurePlayerInGame($db, $gameId, $playerId);
+
+    $existingShips = (int)fetchOne(
+        $db,
+        'SELECT COUNT(*) AS c FROM ships WHERE game_id = ? AND player_id = ?',
+        [$gameId, $playerId]
+    )['c'];
+    if ($existingShips > 0) {
+        respond(['error' => 'player has already placed ships for this game'], 400);
+    }
 
     if (!is_array($ships) || count($ships) !== 3) {
         respond(['error' => 'must place exactly 3 ships'], 400);
     }
 
+    $normalizedShips = [];
     $seen = [];
     foreach ($ships as $ship) {
-        if (!is_array($ship) || !array_key_exists('row', $ship) || !array_key_exists('col', $ship)) {
-            respond(['error' => 'each ship must include row and col'], 400);
+        if (!is_array($ship)) {
+            respond(['error' => 'each ship must be an object'], 400);
         }
-        $row = requireIntInRange($ship['row'], 'row', 0, ((int)$game['grid_size']) - 1);
-        $col = requireIntInRange($ship['col'], 'col', 0, ((int)$game['grid_size']) - 1);
+
+        if (array_key_exists('coordinates', $ship)) {
+            if (!is_array($ship['coordinates']) || count($ship['coordinates']) !== 1) {
+                respond(['error' => 'each ship must occupy exactly one coordinate'], 400);
+            }
+            $coord = $ship['coordinates'][0];
+            if (!is_array($coord) || count($coord) !== 2) {
+                respond(['error' => 'coordinates must contain [row, col]'], 400);
+            }
+            $row = requireIntInRange($coord[0], 'row', 0, ((int)$game['grid_size']) - 1);
+            $col = requireIntInRange($coord[1], 'col', 0, ((int)$game['grid_size']) - 1);
+        } elseif (array_key_exists('row', $ship) && array_key_exists('col', $ship)) {
+            $row = requireIntInRange($ship['row'], 'row', 0, ((int)$game['grid_size']) - 1);
+            $col = requireIntInRange($ship['col'], 'col', 0, ((int)$game['grid_size']) - 1);
+        } else {
+            respond(['error' => 'each ship must include coordinates or row/col'], 400);
+        }
+
         $key = $row . ':' . $col;
         if (isset($seen[$key])) {
             respond(['error' => 'ship coordinates cannot overlap'], 400);
         }
         $seen[$key] = true;
+        $normalizedShips[] = ['row' => $row, 'col' => $col];
     }
 
-    $db->prepare('DELETE FROM ships WHERE game_id = ? AND player_id = ?')->execute([$gameId, $playerId]);
     $stmt = $db->prepare('INSERT INTO ships(game_id, player_id, row, col) VALUES(?, ?, ?, ?)');
-    foreach ($ships as $ship) {
-        $stmt->execute([$gameId, $playerId, (int)$ship['row'], (int)$ship['col']]);
+    foreach ($normalizedShips as $ship) {
+        $stmt->execute([$gameId, $playerId, $ship['row'], $ship['col']]);
     }
 
     $newStatus = allPlayersPlaced($db, $gameId) ? 'active' : 'waiting';

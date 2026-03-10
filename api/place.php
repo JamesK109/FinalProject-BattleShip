@@ -8,6 +8,9 @@ if ($method !== "POST") {
 
 $gameId = requirePositiveInt($segments[1] ?? null, 'id');
 $game = ensureGameExists($db, $gameId);
+if ($game['status'] !== 'waiting') {
+    respond(['error' => 'ships can only be placed before game starts'], 403);
+}
 $data = getJsonInput();
 requireFields($data, ['player_id', 'ships']);
 
