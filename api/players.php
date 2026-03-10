@@ -19,7 +19,7 @@ if ($method === "POST" && count($segments) === 1) {
         respond(["error"=>"username already exists"],400);
     }
 
-    respond(["player_id"=>$db->lastInsertId()],201);
+    respond(["player_id"=>(int)$db->lastInsertId()],201);
 }
 
 if ($method === "GET" && ($segments[2] ?? null) === "stats") {

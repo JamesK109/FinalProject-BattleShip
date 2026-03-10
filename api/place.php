@@ -16,6 +16,15 @@ ensurePlayerExists($db, $playerId);
 ensurePlayerInGame($db, $gameId, $playerId);
 $ships = $data["ships"];
 
+$existingShips = (int)fetchOne(
+    $db,
+    'SELECT COUNT(*) AS c FROM ships WHERE game_id = ? AND player_id = ?',
+    [$gameId, $playerId]
+)['c'];
+if ($existingShips > 0) {
+    respond(['error' => 'player has already placed ships for this game'], 400);
+}
+
 if (!is_array($ships) || count($ships) !== 3) {
     respond(["error"=>"must place exactly 3 ships"],400);
 }
@@ -33,8 +42,6 @@ foreach ($ships as $ship) {
     }
     $seen[$key] = true;
 }
-
-$db->prepare('DELETE FROM ships WHERE game_id = ? AND player_id = ?')->execute([$gameId, $playerId]);
 $stmt = $db->prepare("
     INSERT INTO ships(game_id,player_id,row,col)
     VALUES(?,?,?,?)
