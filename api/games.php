@@ -32,6 +32,9 @@ if ($method === "POST" && count($segments) === 1) {
 if ($method === "POST" && ($segments[2] ?? null) === "join") {
     $gameId = requirePositiveInt($segments[1] ?? null, 'id');
     $game = ensureGameExists($db, $gameId);
+    if ($game['status'] !== 'waiting') {
+        respond(['error' => 'game is no longer accepting players'], 409);
+    }
     $data = getJsonInput();
     requireFields($data, ['player_id']);
     $playerId = requirePositiveInt($data['player_id'], 'player_id');

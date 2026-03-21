@@ -96,6 +96,72 @@ function getActivePlayerIds(PDO $db, int $gameId) {
     return array_map(fn($r) => (int)$r['player_id'], $rows);
 }
 
+function countRemainingShips(PDO $db, int $gameId, int $playerId) {
+    $row = fetchOne(
+        $db,
+        'SELECT COUNT(*) AS c
+         FROM ships s
+         WHERE s.game_id = ? AND s.player_id = ?
+           AND NOT EXISTS (
+               SELECT 1 FROM moves m
+               WHERE m.game_id = s.game_id
+                 AND m.target_player_id = s.player_id
+                 AND m.row = s.row
+                 AND m.col = s.col
+                 AND m.result = "hit"
+           )',
+        [$gameId, $playerId]
+    );
+
+    return (int)($row['c'] ?? 0);
+}
+
+function getAlivePlayerIds(PDO $db, int $gameId) {
+    $playerIds = getActivePlayerIds($db, $gameId);
+    $alive = [];
+
+    foreach ($playerIds as $playerId) {
+        if (countRemainingShips($db, $gameId, $playerId) > 0) {
+            $alive[] = $playerId;
+        }
+    }
+
+    return $alive;
+}
+
+function getNextAlivePlayerId(PDO $db, int $gameId, int $playerId) {
+    $playerIds = getActivePlayerIds($db, $gameId);
+    $count = count($playerIds);
+
+    if ($count === 0) {
+        return null;
+    }
+
+    $currentIndex = array_search($playerId, $playerIds, true);
+    if ($currentIndex === false) {
+        return null;
+    }
+
+    for ($offset = 1; $offset < $count; $offset++) {
+        $candidateId = $playerIds[($currentIndex + $offset) % $count];
+        if (countRemainingShips($db, $gameId, $candidateId) > 0) {
+            return $candidateId;
+        }
+    }
+
+    return null;
+}
+
+function getTurnOrderIndex(PDO $db, int $gameId, int $playerId) {
+    $row = fetchOne(
+        $db,
+        'SELECT turn_order FROM game_players WHERE game_id = ? AND player_id = ?',
+        [$gameId, $playerId]
+    );
+
+    return $row ? (int)$row['turn_order'] : null;
+}
+
 function allPlayersPlaced(PDO $db, int $gameId) {
     $rows = fetchAllRows(
         $db,

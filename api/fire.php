@@ -34,24 +34,40 @@ if (!allPlayersPlaced($db, $gameId)) {
     respond(['error' => 'all players must place ships before firing'], 400);
 }
 
-$activePlayers = getActivePlayerIds($db, $gameId);
-if (count($activePlayers) < 2) {
-    respond(['error' => 'at least two players are required to fire'], 400);
+$playerIds = getActivePlayerIds($db, $gameId);
+$alivePlayers = getAlivePlayerIds($db, $gameId);
+if (count($alivePlayers) < 2) {
+    respond(['error' => 'at least two active players are required to fire'], 400);
 }
 
 $currentTurnIndex = (int)$game['current_turn_index'];
-$expectedPlayerId = $activePlayers[$currentTurnIndex] ?? null;
+$expectedPlayerId = $playerIds[$currentTurnIndex] ?? null;
 if ($expectedPlayerId !== $playerId) {
     respond(['error' => 'not this player\'s turn'], 403);
 }
 
-$alreadyFired = fetchOne($db, 'SELECT id FROM moves WHERE game_id = ? AND player_id = ? AND row = ? AND col = ?', [$gameId, $playerId, $row, $col]);
-if ($alreadyFired) {
-    respond(['error' => 'player has already fired at that coordinate'], 403);
+if (countRemainingShips($db, $gameId, $playerId) === 0) {
+    respond(['error' => 'eliminated players cannot fire'], 409);
 }
 
-$targetIndex = ($currentTurnIndex + 1) % count($activePlayers);
-$targetPlayerId = $activePlayers[$targetIndex];
+$targetPlayerId = getNextAlivePlayerId($db, $gameId, $playerId);
+if ($targetPlayerId === null) {
+    $db->prepare("UPDATE games SET status = 'finished', winner_id = ? WHERE id = ?")->execute([$playerId, $gameId]);
+    respond([
+        'error' => 'no valid target remains',
+        'game_status' => 'finished',
+        'winner_id' => $playerId,
+    ], 409);
+}
+
+$alreadyFired = fetchOne(
+    $db,
+    'SELECT id FROM moves WHERE game_id = ? AND target_player_id = ? AND row = ? AND col = ?',
+    [$gameId, $targetPlayerId, $row, $col]
+);
+if ($alreadyFired) {
+    respond(['error' => 'that coordinate has already been targeted for this opponent'], 409);
+}
 
 $hitShip = fetchOne($db, 'SELECT row, col FROM ships WHERE game_id = ? AND player_id = ? AND row = ? AND col = ?', [$gameId, $targetPlayerId, $row, $col]);
 $result = $hitShip ? 'hit' : 'miss';
@@ -64,26 +80,13 @@ if ($result === 'hit') {
     $db->prepare('UPDATE players SET total_hits = total_hits + 1 WHERE id = ?')->execute([$playerId]);
 }
 
-$remainingTargetShips = (int)fetchOne(
-    $db,
-    'SELECT COUNT(*) AS c
-     FROM ships s
-     WHERE s.game_id = ? AND s.player_id = ?
-       AND NOT EXISTS (
-           SELECT 1 FROM moves m
-           WHERE m.game_id = s.game_id
-             AND m.target_player_id = s.player_id
-             AND m.row = s.row
-             AND m.col = s.col
-             AND m.result = "hit"
-       )',
-    [$gameId, $targetPlayerId]
-)['c'];
+$remainingTargetShips = countRemainingShips($db, $gameId, $targetPlayerId);
+$remainingAlivePlayers = getAlivePlayerIds($db, $gameId);
 
-if ($remainingTargetShips === 0) {
+if ($remainingTargetShips === 0 && count($remainingAlivePlayers) === 1) {
     $db->prepare("UPDATE games SET status = 'finished', winner_id = ? WHERE id = ?")->execute([$playerId, $gameId]);
 
-    foreach ($activePlayers as $pid) {
+    foreach ($playerIds as $pid) {
         $db->prepare('UPDATE players SET games_played = games_played + 1 WHERE id = ?')->execute([$pid]);
         if ($pid === $playerId) {
             $db->prepare('UPDATE players SET wins = wins + 1 WHERE id = ?')->execute([$pid]);
@@ -100,12 +103,33 @@ if ($remainingTargetShips === 0) {
     ]);
 }
 
-$nextTurnIndex = ($currentTurnIndex + 1) % count($activePlayers);
-$nextPlayerId = $activePlayers[$nextTurnIndex];
+$nextPlayerId = getNextAlivePlayerId($db, $gameId, $playerId);
+if ($nextPlayerId === null) {
+    $db->prepare("UPDATE games SET status = 'finished', winner_id = ? WHERE id = ?")->execute([$playerId, $gameId]);
+
+    foreach ($playerIds as $pid) {
+        $db->prepare('UPDATE players SET games_played = games_played + 1 WHERE id = ?')->execute([$pid]);
+        if ($pid === $playerId) {
+            $db->prepare('UPDATE players SET wins = wins + 1 WHERE id = ?')->execute([$pid]);
+        } else {
+            $db->prepare('UPDATE players SET losses = losses + 1 WHERE id = ?')->execute([$pid]);
+        }
+    }
+
+    respond([
+        'result' => $result,
+        'next_player_id' => null,
+        'game_status' => 'finished',
+        'winner_id' => $playerId,
+    ]);
+}
+
+$nextTurnIndex = getTurnOrderIndex($db, $gameId, $nextPlayerId);
 $db->prepare('UPDATE games SET current_turn_index = ? WHERE id = ?')->execute([$nextTurnIndex, $gameId]);
 
 respond([
     'result' => $result,
+    'target_player_id' => $targetPlayerId,
     'next_player_id' => $nextPlayerId,
     'game_status' => 'active',
 ]);
