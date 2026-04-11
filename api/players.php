@@ -2,51 +2,43 @@
 
 $db = getDB();
 
-if ($method === "POST" && count($segments) === 1) {
-
+if ($method === 'POST' && count($segments) === 1) {
     $data = getJsonInput();
-    $username = $data["username"] ?? null;
+    ensureNoExtraFields($data, ['username']);
+    requireFields($data, ['username']);
 
-    if (!$username) {
-        respond(["error"=>"username required"],400);
+    $username = trim((string)$data['username']);
+    if ($username === '' || strlen($username) > 30 || !preg_match('/^[A-Za-z0-9_]+$/', $username)) {
+        errorResponse('bad_request', 'Username must be alphanumeric with underscores only', 400);
     }
 
-    $stmt = $db->prepare("INSERT INTO players(username) VALUES(?)");
-
-    try {
-        $stmt->execute([$username]);
-    } catch(Exception $e) {
-        respond(["error"=>"username already exists"],400);
+    $existing = fetchOne($db, 'SELECT id FROM players WHERE username = ?', [$username]);
+    if ($existing) {
+        respond(['player_id' => (int)$existing['id']], 201);
     }
 
-    respond(["player_id"=>(int)$db->lastInsertId()],201);
+    $stmt = $db->prepare('INSERT INTO players(username) VALUES(?)');
+    $stmt->execute([$username]);
+
+    respond(['player_id' => (int)$db->lastInsertId()], 201);
 }
 
-if ($method === "GET" && ($segments[2] ?? null) === "stats") {
+if ($method === 'GET' && ($segments[2] ?? null) === 'stats') {
+    $playerId = requirePositiveInt($segments[1] ?? null, 'player_id');
+    $player = ensurePlayerExists($db, $playerId);
 
-    $id = $segments[1];
-
-    $stmt = $db->prepare("SELECT * FROM players WHERE id=?");
-    $stmt->execute([$id]);
-    $player = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$player) {
-        respond(["error"=>"player not found"],404);
-    }
-
-    $accuracy = 0;
-    if ($player["total_shots"] > 0) {
-        $accuracy = $player["total_hits"] / $player["total_shots"];
-    }
+    $shots = (int)$player['total_shots'];
+    $hits = (int)$player['total_hits'];
+    $accuracy = $shots > 0 ? round($hits / $shots, 3) : 0.0;
 
     respond([
-        "games_played"=>$player["games_played"],
-        "wins"=>$player["wins"],
-        "losses"=>$player["losses"],
-        "total_shots"=>$player["total_shots"],
-        "total_hits"=>$player["total_hits"],
-        "accuracy"=>$accuracy
+        'games_played' => (int)$player['games_played'],
+        'wins' => (int)$player['wins'],
+        'losses' => (int)$player['losses'],
+        'total_shots' => $shots,
+        'total_hits' => $hits,
+        'accuracy' => $accuracy,
     ]);
 }
 
-respond(["error"=>"Invalid players endpoint"],404);
+errorResponse('not_found', 'Invalid players endpoint', 404);

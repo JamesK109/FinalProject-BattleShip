@@ -1,7 +1,7 @@
 <?php
 
 if ($method !== "POST") {
-    respond(["error"=>"Method not allowed"],405);
+    errorResponse('method_not_allowed', 'Method not allowed', 405);
 }
 
 $db = getDB();

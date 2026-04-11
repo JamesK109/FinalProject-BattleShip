@@ -3,16 +3,18 @@
 $db = getDB();
 
 if ($method !== "POST") {
-    respond(["error"=>"Method not allowed"],405);
+    errorResponse('method_not_allowed', 'Method not allowed', 405);
 }
 
 $gameId = requirePositiveInt($segments[1] ?? null, 'id');
-$game = ensureGameExists($db, $gameId);
-if ($game['status'] !== 'waiting') {
-    respond(['error' => 'ships can only be placed before game starts'], 403);
-}
+$game = syncGameState($db, $gameId);
 $data = getJsonInput();
+ensureNoExtraFields($data, ['player_id', 'ships']);
 requireFields($data, ['player_id', 'ships']);
+
+if ($game['status'] !== 'waiting_setup') {
+    errorResponse('forbidden', 'Ships can only be placed during setup', 403);
+}
 
 $playerId = requirePositiveInt($data["player_id"], 'player_id');
 ensurePlayerExists($db, $playerId);
@@ -25,24 +27,25 @@ $existingShips = (int)fetchOne(
     [$gameId, $playerId]
 )['c'];
 if ($existingShips > 0) {
-    respond(['error' => 'player has already placed ships for this game'], 400);
+    errorResponse('conflict', 'Ships already placed', 409);
 }
 
 if (!is_array($ships) || count($ships) !== 3) {
-    respond(["error"=>"must place exactly 3 ships"],400);
+    errorResponse('bad_request', 'Must place exactly 3 ships', 400);
 }
 
 $normalizedShips = [];
 $seen = [];
 foreach ($ships as $ship) {
     if (!is_array($ship) || !array_key_exists('row', $ship) || !array_key_exists('col', $ship)) {
-        respond(['error' => 'each ship must include row and col'], 400);
+        errorResponse('bad_request', 'Each ship must include row and col', 400);
     }
+    ensureNoExtraFields($ship, ['row', 'col']);
     $row = requireIntInRange($ship["row"], 'row', 0, ((int)$game['grid_size']) - 1);
     $col = requireIntInRange($ship["col"], 'col', 0, ((int)$game['grid_size']) - 1);
     $key = $row . ':' . $col;
     if (isset($seen[$key])) {
-        respond(['error' => 'ship coordinates cannot overlap'], 400);
+        errorResponse('bad_request', 'Ship coordinates cannot overlap', 400);
     }
     $seen[$key] = true;
     $normalizedShips[] = ['row' => $row, 'col' => $col];
@@ -56,7 +59,6 @@ foreach ($normalizedShips as $ship) {
     $stmt->execute([$gameId, $playerId, $ship['row'], $ship['col']]);
 }
 
-$newStatus = allPlayersPlaced($db, $gameId) ? 'active' : 'waiting';
-$db->prepare('UPDATE games SET status = ?, current_turn_index = 0, winner_id = NULL WHERE id = ?')->execute([$newStatus, $gameId]);
+syncGameState($db, $gameId);
 
-respond(["status"=>"ships placed"]);
+respond(["status" => "placed"]);

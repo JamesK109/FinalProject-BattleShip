@@ -1,6 +1,6 @@
 @baseUrl = https://cpsc.loosesocket.com
 @gameId = 1
-@player1 = 1
+@player1 = 77
 @player2 = 2
 @testPassword = clemson-test-2026
 

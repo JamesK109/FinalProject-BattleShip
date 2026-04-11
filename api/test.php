@@ -4,7 +4,7 @@ $db = getDB();
 isTestRequestAuthorized();
 
 if (($segments[1] ?? null) !== 'games') {
-    respond(['error' => 'Unknown test endpoint'], 404);
+    errorResponse('not_found', 'Unknown test endpoint', 404);
 }
 
 $gameId = requirePositiveInt($segments[2] ?? null, 'id');
@@ -14,24 +14,24 @@ $action = $segments[3] ?? null;
 if ($method === 'POST' && $action === 'restart') {
     $db->prepare('DELETE FROM ships WHERE game_id = ?')->execute([$gameId]);
     $db->prepare('DELETE FROM moves WHERE game_id = ?')->execute([$gameId]);
-    $db->prepare("UPDATE games SET status = 'waiting', current_turn_index = 0, winner_id = NULL WHERE id = ?")->execute([$gameId]);
-    respond(['status' => 'restarted']);
+    $db->prepare("UPDATE games SET status = 'waiting_setup', current_turn_index = 0, winner_id = NULL WHERE id = ?")->execute([$gameId]);
+    respond(['status' => 'reset']);
 }
 
 if ($method === 'POST' && $action === 'ships') {
     $data = getJsonInput();
     $rawPlayerId = $data['playerId'] ?? ($data['player_id'] ?? null);
     if ($rawPlayerId === null) {
-        respond(['error' => 'playerId is required'], 400);
+        errorResponse('bad_request', 'playerId is required', 400);
     }
     $playerId = requirePositiveInt($rawPlayerId, 'playerId');
     if (!array_key_exists('ships', $data)) {
-        respond(['error' => 'ships is required'], 400);
+        errorResponse('bad_request', 'ships is required', 400);
     }
     $ships = $data['ships'];
 
-    if ($game['status'] !== 'waiting') {
-        respond(['error' => 'ships can only be placed before game starts'], 403);
+    if ($game['status'] !== 'waiting_setup') {
+        errorResponse('forbidden', 'Ships can only be placed during setup', 403);
     }
 
     ensurePlayerExists($db, $playerId);
@@ -43,27 +43,27 @@ if ($method === 'POST' && $action === 'ships') {
         [$gameId, $playerId]
     )['c'];
     if ($existingShips > 0) {
-        respond(['error' => 'player has already placed ships for this game'], 400);
+        errorResponse('conflict', 'Ships already placed', 409);
     }
 
     if (!is_array($ships) || count($ships) !== 3) {
-        respond(['error' => 'must place exactly 3 ships'], 400);
+        errorResponse('bad_request', 'Must place exactly 3 ships', 400);
     }
 
     $normalizedShips = [];
     $seen = [];
     foreach ($ships as $ship) {
         if (!is_array($ship)) {
-            respond(['error' => 'each ship must be an object'], 400);
+            errorResponse('bad_request', 'Each ship must be an object', 400);
         }
 
         if (array_key_exists('coordinates', $ship)) {
             if (!is_array($ship['coordinates']) || count($ship['coordinates']) !== 1) {
-                respond(['error' => 'each ship must occupy exactly one coordinate'], 400);
+                errorResponse('bad_request', 'Each ship must occupy exactly one coordinate', 400);
             }
             $coord = $ship['coordinates'][0];
             if (!is_array($coord) || count($coord) !== 2) {
-                respond(['error' => 'coordinates must contain [row, col]'], 400);
+                errorResponse('bad_request', 'Coordinates must contain [row, col]', 400);
             }
             $row = requireIntInRange($coord[0], 'row', 0, ((int)$game['grid_size']) - 1);
             $col = requireIntInRange($coord[1], 'col', 0, ((int)$game['grid_size']) - 1);
@@ -71,12 +71,12 @@ if ($method === 'POST' && $action === 'ships') {
             $row = requireIntInRange($ship['row'], 'row', 0, ((int)$game['grid_size']) - 1);
             $col = requireIntInRange($ship['col'], 'col', 0, ((int)$game['grid_size']) - 1);
         } else {
-            respond(['error' => 'each ship must include coordinates or row/col'], 400);
+            errorResponse('bad_request', 'Each ship must include coordinates or row/col', 400);
         }
 
         $key = $row . ':' . $col;
         if (isset($seen[$key])) {
-            respond(['error' => 'ship coordinates cannot overlap'], 400);
+            errorResponse('bad_request', 'Ship coordinates cannot overlap', 400);
         }
         $seen[$key] = true;
         $normalizedShips[] = ['row' => $row, 'col' => $col];
@@ -87,9 +87,8 @@ if ($method === 'POST' && $action === 'ships') {
         $stmt->execute([$gameId, $playerId, $ship['row'], $ship['col']]);
     }
 
-    $newStatus = allPlayersPlaced($db, $gameId) ? 'active' : 'waiting';
-    $db->prepare('UPDATE games SET status = ?, current_turn_index = 0, winner_id = NULL WHERE id = ?')->execute([$newStatus, $gameId]);
-    respond(['status' => 'ships placed']);
+    syncGameState($db, $gameId);
+    respond(['status' => 'placed']);
 }
 
 if ($method === 'GET' && $action === 'board' && isset($segments[4])) {
@@ -127,4 +126,4 @@ if ($method === 'GET' && $action === 'board' && isset($segments[4])) {
     ]);
 }
 
-respond(['error' => 'Unknown test endpoint'], 404);
+errorResponse('not_found', 'Unknown test endpoint', 404);

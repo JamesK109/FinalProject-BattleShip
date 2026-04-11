@@ -22,14 +22,42 @@ $segments = explode('/', trim($path, '/'));
 
 if (($segments[0] ?? null) !== 'api') {
     http_response_code(404);
-    echo json_encode(['error' => 'Invalid API path']);
+    echo json_encode(['error' => 'not_found', 'message' => 'Invalid API path']);
     exit;
 }
 
 array_shift($segments);
 $resource = $segments[0] ?? null;
 
+if ($method === 'GET' && $resource === null) {
+    respond([
+        'name' => API_NAME,
+        'version' => API_VERSION,
+        'spec_version' => SPEC_VERSION,
+        'environment' => TEST_MODE ? 'test' : 'production',
+        'test_mode' => TEST_MODE,
+    ]);
+}
+
 switch ($resource) {
+    case 'version':
+        if ($method === 'GET' && count($segments) === 1) {
+            respond([
+                'api_version' => API_VERSION,
+                'spec_version' => SPEC_VERSION,
+            ]);
+        }
+        break;
+
+    case 'health':
+        if ($method === 'GET' && count($segments) === 1) {
+            respond([
+                'status' => 'ok',
+                'uptime_seconds' => (int)($_SERVER['REQUEST_TIME'] ?? time()),
+            ]);
+        }
+        break;
+
     case 'reset':
         require __DIR__ . '/../api/reset.php';
         break;
@@ -59,6 +87,7 @@ switch ($resource) {
         break;
 
     default:
-        http_response_code(404);
-        echo json_encode(['error' => 'Unknown endpoint']);
+        errorResponse('not_found', 'Unknown endpoint', 404);
 }
+
+errorResponse('not_found', 'Unknown endpoint', 404);

@@ -38,7 +38,7 @@ function initializeSchema($db) {
             creator_id INTEGER,
             grid_size INTEGER,
             max_players INTEGER,
-            status TEXT DEFAULT 'waiting',
+            status TEXT DEFAULT 'waiting_setup',
             current_turn_index INTEGER DEFAULT 0,
             winner_id INTEGER DEFAULT NULL
         );
@@ -87,4 +87,7 @@ function initializeSchema($db) {
     if (!in_array('target_player_id', $moveColumnNames, true)) {
         $db->exec("ALTER TABLE moves ADD COLUMN target_player_id INTEGER DEFAULT NULL");
     }
+
+    $db->exec("UPDATE games SET status = 'waiting_setup' WHERE status = 'waiting'");
+    $db->exec("UPDATE games SET status = 'playing' WHERE status = 'active'");
 }
