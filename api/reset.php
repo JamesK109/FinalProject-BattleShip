@@ -11,5 +11,5 @@ $db->exec("DELETE FROM game_players");
 $db->exec("DELETE FROM ships");
 $db->exec("DELETE FROM moves");
 $db->exec("DELETE FROM players");
-
+$db->exec("DELETE FROM sqlite_sequence");
 respond(["status"=>"reset"]);
