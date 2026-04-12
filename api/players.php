@@ -14,7 +14,7 @@ if ($method === 'POST' && count($segments) === 1) {
 
     $existing = fetchOne($db, 'SELECT id FROM players WHERE username = ?', [$username]);
     if ($existing) {
-        respond(['player_id' => (int)$existing['id']], 201);
+        errorResponse('conflict', 'Username already taken', 409);
     }
 
     $stmt = $db->prepare('INSERT INTO players(username) VALUES(?)');

@@ -41,7 +41,7 @@ if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
 
     $alreadyJoined = fetchOne($db, 'SELECT 1 FROM game_players WHERE game_id = ? AND player_id = ?', [$gameId, $playerId]);
     if ($alreadyJoined) {
-        respond(['status' => 'joined']);
+        errorResponse('conflict', 'Player already joined this game', 409);
     }
 
     $joinedCount = joinedPlayerCount($db, $gameId);
