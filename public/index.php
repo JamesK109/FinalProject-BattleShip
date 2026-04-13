@@ -58,10 +58,6 @@ switch ($resource) {
         }
         break;
 
-    case 'reset':
-        require __DIR__ . '/../api/reset.php';
-        break;
-
     case 'players':
         require __DIR__ . '/../api/players.php';
         break;

@@ -23,7 +23,7 @@ function getJsonInput() {
 function respond($data, $status = 200) {
     header('Content-Type: application/json');
     http_response_code($status);
-    echo json_encode($data);
+    echo json_encode($data, JSON_PRESERVE_ZERO_FRACTION);
     exit;
 }
 
@@ -316,4 +316,13 @@ function isTestRequestAuthorized() {
     if ($password !== TEST_PASSWORD) {
         errorResponse('forbidden', 'Invalid test password', 403);
     }
+}
+
+function resetDatabase(PDO $db) {
+    $db->exec('DELETE FROM moves');
+    $db->exec('DELETE FROM ships');
+    $db->exec('DELETE FROM game_players');
+    $db->exec('DELETE FROM games');
+    $db->exec('DELETE FROM players');
+    $db->exec('DELETE FROM sqlite_sequence');
 }

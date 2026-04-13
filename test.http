@@ -5,8 +5,9 @@
 @testPassword = clemson-test-2026
 
 ### RESET SERVER
-POST {{baseUrl}}/api/reset
+POST {{baseUrl}}/api/test/reset
 Content-Type: application/json
+X-Test-Password: {{testPassword}}
 
 {}
 

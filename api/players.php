@@ -17,8 +17,15 @@ if ($method === 'POST' && count($segments) === 1) {
         errorResponse('conflict', 'Username already taken', 409);
     }
 
-    $stmt = $db->prepare('INSERT INTO players(username) VALUES(?)');
-    $stmt->execute([$username]);
+    try {
+        $stmt = $db->prepare('INSERT INTO players(username) VALUES(?)');
+        $stmt->execute([$username]);
+    } catch (PDOException $e) {
+        if ((int)$e->getCode() === 23000) {
+            errorResponse('conflict', 'Username already exists', 409);
+        }
+        throw $e;
+    }
 
     respond(['player_id' => (int)$db->lastInsertId()], 201);
 }

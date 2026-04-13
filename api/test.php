@@ -3,6 +3,11 @@
 $db = getDB();
 isTestRequestAuthorized();
 
+if ($method === 'POST' && count($segments) === 2 && ($segments[1] ?? null) === 'reset') {
+    resetDatabase($db);
+    respond(['status' => 'reset']);
+}
+
 if (($segments[1] ?? null) !== 'games') {
     errorResponse('not_found', 'Unknown test endpoint', 404);
 }
