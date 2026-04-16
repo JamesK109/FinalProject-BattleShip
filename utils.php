@@ -307,6 +307,25 @@ function finalizeFinishedGame(PDO $db, int $gameId, int $winnerId) {
     }
 }
 
+function restartGameState(PDO $db, int $gameId, bool $clearPlayers = true) {
+    ensureGameExists($db, $gameId);
+
+    $db->prepare('DELETE FROM ships WHERE game_id = ?')->execute([$gameId]);
+    $db->prepare('DELETE FROM moves WHERE game_id = ?')->execute([$gameId]);
+
+    if ($clearPlayers) {
+        $db->prepare('DELETE FROM game_players WHERE game_id = ?')->execute([$gameId]);
+    }
+
+    $db->prepare(
+        "UPDATE games
+         SET status = 'waiting_setup',
+             current_turn_index = 0,
+             winner_id = NULL
+         WHERE id = ?"
+    )->execute([$gameId]);
+}
+
 function isTestRequestAuthorized() {
     if (!TEST_MODE) {
         errorResponse('forbidden', 'Test mode disabled', 403);

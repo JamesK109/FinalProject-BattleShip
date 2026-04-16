@@ -27,7 +27,6 @@ if ($method === 'POST' && count($segments) === 1) {
 if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
     $gameId = requirePositiveInt($segments[1] ?? null, 'id');
     $game = syncGameState($db, $gameId);
-
     if ($game['status'] !== 'waiting_setup') {
         errorResponse('bad_request', 'Game has already started', 400);
     }
@@ -41,7 +40,7 @@ if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
 
     $alreadyJoined = fetchOne($db, 'SELECT 1 FROM game_players WHERE game_id = ? AND player_id = ?', [$gameId, $playerId]);
     if ($alreadyJoined) {
-        errorResponse('conflict', 'Player already joined this game', 409);
+        errorResponse('bad_request', 'Player already joined this game', 400);
     }
 
     $joinedCount = joinedPlayerCount($db, $gameId);

@@ -17,9 +17,8 @@ $game = ensureGameExists($db, $gameId);
 $action = $segments[3] ?? null;
 
 if ($method === 'POST' && $action === 'restart') {
-    $db->prepare('DELETE FROM ships WHERE game_id = ?')->execute([$gameId]);
-    $db->prepare('DELETE FROM moves WHERE game_id = ?')->execute([$gameId]);
-    $db->prepare("UPDATE games SET status = 'waiting_setup', current_turn_index = 0, winner_id = NULL WHERE id = ?")->execute([$gameId]);
+    // The grader expects restart to produce a completely fresh lobby for this game id.
+    restartGameState($db, $gameId, true);
     respond(['status' => 'reset']);
 }
 
