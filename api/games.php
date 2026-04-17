@@ -5,7 +5,18 @@ $db = getDB();
 if ($method === 'POST' && count($segments) === 1) {
     $data = getJsonInput();
     ensureNoExtraFields($data, ['creator_id', 'grid_size', 'max_players']);
-    requireFields($data, ['creator_id', 'grid_size', 'max_players']);
+    $requiredFields = ['creator_id', 'grid_size', 'max_players'];
+    $missingFields = array_values(array_filter(
+        $requiredFields,
+        fn($field) => !array_key_exists($field, $data)
+    ));
+    if ($missingFields !== []) {
+        errorResponse(
+            'missing required fields',
+            'Missing required fields: ' . implode(', ', $missingFields),
+            400
+        );
+    }
 
     $creatorId = requirePositiveInt($data['creator_id'], 'creator_id');
     $gridSize = requireIntInRange($data['grid_size'], 'grid_size', 5, 15);
@@ -36,7 +47,9 @@ if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
     requireFields($data, ['player_id']);
 
     $playerId = requirePositiveInt($data['player_id'], 'player_id');
-    ensurePlayerExists($db, $playerId);
+    if (!fetchOne($db, 'SELECT id FROM players WHERE id = ?', [$playerId])) {
+        errorResponse('player does not exist', 'Player does not exist', 404);
+    }
 
     $alreadyJoined = fetchOne($db, 'SELECT 1 FROM game_players WHERE game_id = ? AND player_id = ?', [$gameId, $playerId]);
     if ($alreadyJoined) {
