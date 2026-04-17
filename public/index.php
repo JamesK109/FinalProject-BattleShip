@@ -110,7 +110,7 @@ if (($segments[0] ?? null) === 'api') {
     <div id="message" class="message hidden"></div>
 
     <main class="layout">
-      <section class="panel stack">
+      <section id="registerSection" class="panel stack">
         <h2>1. Register player</h2>
         <div class="inline-form">
           <input id="usernameInput" type="text" maxlength="30" placeholder="Enter username (letters, numbers, underscore)">
@@ -119,7 +119,7 @@ if (($segments[0] ?? null) === 'api') {
         <p class="muted">The client stores your player id locally so you stay signed in after refresh.</p>
       </section>
 
-      <section class="panel stack">
+      <section id="gamesSection" class="panel stack">
         <div class="section-head">
           <h2>2. Games</h2>
           <button id="refreshLobbyBtn" class="secondary">Refresh known games</button>
@@ -138,28 +138,30 @@ if (($segments[0] ?? null) === 'api') {
         <div id="lobbyList" class="list-grid"></div>
       </section>
 
-      <section class="panel stack game-panel">
+      <section id="activeGameSection" class="panel stack game-panel">
         <div class="section-head">
           <h2>3. Active game</h2>
           <div id="turnBadge" class="badge">No game selected</div>
         </div>
         <div id="gameSummary" class="summary-box muted">Join or create a game to begin.</div>
 
-        <div class="placement-bar">
+        <div id="placementBar" class="placement-bar">
           <div>
-            <strong>Place exactly 3 ships.</strong>
-            <span class="muted">Click your board to choose cells, then confirm.</span>
+            <strong id="placementTitle">Place exactly 3 ships.</strong>
+            <span id="placementHint" class="muted">Click your board to choose cells, then confirm.</span>
           </div>
           <button id="submitShipsBtn" class="secondary">Confirm ships</button>
         </div>
 
         <div class="boards-wrap">
-          <div>
+          <div class="board-panel">
             <h3>Your board</h3>
+            <p class="muted">Ships are shown in blue. Opponent hits are red. Opponent misses are gray when the API makes them identifiable.</p>
             <div id="playerBoard" class="board"></div>
           </div>
-          <div>
+          <div class="board-panel">
             <h3>Target board</h3>
+            <p class="muted">This board shows only your shots. Click an untargeted cell here when it is your turn.</p>
             <div id="opponentBoards" class="opponents-grid"></div>
           </div>
         </div>

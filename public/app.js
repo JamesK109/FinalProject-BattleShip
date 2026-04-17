@@ -4,13 +4,16 @@ const state = {
   selectedGameId: Number(localStorage.getItem('battleship_game_id') || 0),
   selectedShips: [],
   knownGameIds: JSON.parse(localStorage.getItem('battleship_known_game_ids') || '[]').filter((id) => Number.isInteger(id) && id > 0),
+  shipCache: JSON.parse(localStorage.getItem('battleship_ship_cache') || '{}'),
   lobbyTimer: null,
 };
 
 const els = {
   message: document.getElementById('message'),
+  registerSection: document.getElementById('registerSection'),
   usernameInput: document.getElementById('usernameInput'),
   registerBtn: document.getElementById('registerBtn'),
+  gamesSection: document.getElementById('gamesSection'),
   createGameBtn: document.getElementById('createGameBtn'),
   refreshLobbyBtn: document.getElementById('refreshLobbyBtn'),
   gridSizeInput: document.getElementById('gridSizeInput'),
@@ -21,8 +24,12 @@ const els = {
   lobbyList: document.getElementById('lobbyList'),
   identityName: document.getElementById('identityName'),
   identityMeta: document.getElementById('identityMeta'),
+  activeGameSection: document.getElementById('activeGameSection'),
   gameSummary: document.getElementById('gameSummary'),
   turnBadge: document.getElementById('turnBadge'),
+  placementBar: document.getElementById('placementBar'),
+  placementTitle: document.getElementById('placementTitle'),
+  placementHint: document.getElementById('placementHint'),
   playerBoard: document.getElementById('playerBoard'),
   opponentBoards: document.getElementById('opponentBoards'),
   submitShipsBtn: document.getElementById('submitShipsBtn'),
@@ -58,6 +65,26 @@ function clearMessage() {
 
 function persistKnownGames() {
   localStorage.setItem('battleship_known_game_ids', JSON.stringify(state.knownGameIds));
+}
+
+function persistShipCache() {
+  localStorage.setItem('battleship_ship_cache', JSON.stringify(state.shipCache));
+}
+
+function shipCacheKey(gameId, playerId) {
+  return `${gameId}:${playerId}`;
+}
+
+function getStoredShips(gameId = state.selectedGameId, playerId = state.playerId) {
+  if (!gameId || !playerId) return [];
+  const ships = state.shipCache[shipCacheKey(gameId, playerId)];
+  return Array.isArray(ships) ? ships : [];
+}
+
+function storeShips(gameId, playerId, ships) {
+  if (!gameId || !playerId) return;
+  state.shipCache[shipCacheKey(gameId, playerId)] = ships.map((ship) => ({ row: ship.row, col: ship.col }));
+  persistShipCache();
 }
 
 function rememberGame(gameId) {
@@ -99,6 +126,43 @@ function renderIdentity() {
   }
 }
 
+function setHidden(element, hidden) {
+  element.classList.toggle('hidden', hidden);
+}
+
+function updateUiState(game = null) {
+  const hasIdentity = Boolean(state.playerId);
+  const joined = game ? game.players.some((player) => player.player_id === state.playerId) : false;
+  const storedShips = getStoredShips(game ? game.game_id : 0, state.playerId);
+  const hasPlacedShips = storedShips.length === 3;
+  const canPlaceShips = Boolean(game && joined && game.status === 'waiting_setup' && !hasPlacedShips);
+  const canManageGames = hasIdentity;
+  const hasActiveGame = Boolean(state.selectedGameId);
+
+  setHidden(els.registerSection, hasIdentity);
+  setHidden(els.gamesSection, !canManageGames);
+  setHidden(els.activeGameSection, !hasActiveGame);
+  setHidden(els.placementBar, !canPlaceShips);
+
+  els.createGameBtn.disabled = !hasIdentity;
+  els.openGameBtn.disabled = !hasIdentity;
+  els.joinGameBtn.disabled = !hasIdentity;
+  els.refreshLobbyBtn.disabled = !hasIdentity;
+
+  if (!game || !joined) {
+    els.submitShipsBtn.disabled = true;
+    return;
+  }
+
+  els.submitShipsBtn.disabled = !canPlaceShips || state.selectedShips.length !== 3;
+  if (canPlaceShips) {
+    els.placementTitle.textContent = 'Place exactly 3 ships.';
+    els.placementHint.textContent = state.selectedShips.length
+      ? `${state.selectedShips.length}/3 selected. Click your board to finish placement.`
+      : 'Click your board to choose three ship cells, then confirm.';
+  }
+}
+
 async function registerPlayer() {
   const username = els.usernameInput.value.trim();
   if (!username) {
@@ -115,6 +179,7 @@ async function registerPlayer() {
     showMessage(`Registered ${username} successfully.`, 'success');
     loadLeaderboard();
     loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
+    updateUiState();
   } catch (err) {
     showMessage(err.message, 'error');
   }
@@ -180,6 +245,7 @@ async function joinEnteredGame() {
 async function loadLobby() {
   if (!state.knownGameIds.length) {
     renderLobby([]);
+    updateUiState();
     return;
   }
 
@@ -200,6 +266,7 @@ async function loadLobby() {
   }));
 
   renderLobby(results.filter(Boolean));
+  updateUiState();
 }
 
 function renderLobby(games) {
@@ -277,6 +344,7 @@ async function submitShips() {
       method: 'POST',
       body: JSON.stringify({ player_id: state.playerId, ships: state.selectedShips }),
     });
+    storeShips(state.selectedGameId, state.playerId, state.selectedShips);
     state.selectedShips = [];
     showMessage('Ships placed successfully.', 'success');
     await loadSelectedGame();
@@ -317,6 +385,7 @@ async function loadSelectedGame() {
     els.playerBoard.innerHTML = '';
     els.opponentBoards.innerHTML = '';
     els.moveHistory.innerHTML = '';
+    updateUiState();
     return;
   }
   try {
@@ -326,6 +395,7 @@ async function loadSelectedGame() {
     ]);
     renderGame(game, moves);
   } catch (err) {
+    updateUiState();
     showMessage(`Could not load game: ${err.message}`, 'error');
   }
 }
@@ -346,25 +416,46 @@ function inferWinnerId(game) {
   return survivors.length === 1 ? survivors[0].player_id : null;
 }
 
-function buildOwnBoard(game, joined) {
+function buildOwnBoard(game, joined, moves) {
   if (!joined || !state.playerId) return null;
 
-  const selectedMap = {};
-  if (game.status === 'waiting_setup') {
+  const shipMap = {};
+  const storedShips = getStoredShips(game.game_id, state.playerId);
+  storedShips.forEach((ship) => {
+    shipMap[`${ship.row}:${ship.col}`] = 'ship';
+  });
+  if (game.status === 'waiting_setup' && !storedShips.length) {
     state.selectedShips.forEach((ship) => {
-      selectedMap[`${ship.row}:${ship.col}`] = 'ship';
+      shipMap[`${ship.row}:${ship.col}`] = 'ship';
     });
   }
 
+  const otherPlayers = game.players.filter((player) => player.player_id !== state.playerId);
+  const exactIncoming = otherPlayers.length === 1;
+  moves
+    .filter((move) => move.player_id !== state.playerId)
+    .forEach((move) => {
+      const key = `${move.row}:${move.col}`;
+      if (shipMap[key] === 'ship' && move.result === 'hit') {
+        shipMap[key] = 'hit';
+        return;
+      }
+      if (exactIncoming && move.result === 'miss' && !shipMap[key]) {
+        shipMap[key] = 'miss';
+      }
+    });
+
   return {
-    cells: createBoardCells(game.grid_size, selectedMap),
-    canPlaceShips: game.status === 'waiting_setup',
+    cells: createBoardCells(game.grid_size, shipMap),
+    canPlaceShips: game.status === 'waiting_setup' && storedShips.length === 0,
+    hasStoredShips: storedShips.length === 3,
+    exactIncoming,
   };
 }
 
 function buildTargetBoard(game, moves) {
   const shotMap = {};
-  moves.forEach((move) => {
+  moves.filter((move) => move.player_id === state.playerId).forEach((move) => {
     shotMap[`${move.row}:${move.col}`] = move.result;
   });
   return createBoardCells(game.grid_size, shotMap);
@@ -374,8 +465,9 @@ function renderGame(game, moves) {
   const myTurn = game.current_turn_player_id === state.playerId;
   const joined = game.players.some((p) => p.player_id === state.playerId);
   const winnerId = inferWinnerId(game);
-  const ownBoard = buildOwnBoard(game, joined);
+  const ownBoard = buildOwnBoard(game, joined, moves);
   const targetBoard = buildTargetBoard(game, moves);
+  updateUiState(game);
   els.turnBadge.textContent = !joined
     ? 'Viewing only'
     : game.status === 'finished'
@@ -384,12 +476,22 @@ function renderGame(game, moves) {
         ? 'Your turn'
         : `Current turn: #${game.current_turn_player_id ?? 'waiting'}`;
 
+  const boardMessage = !joined
+    ? 'Join this game to place ships and fire.'
+    : ownBoard && ownBoard.hasStoredShips
+      ? ownBoard.exactIncoming
+        ? 'Your board shows your ships plus incoming hits and misses.'
+        : 'Your board shows your ships and confirmed incoming hits. Misses cannot be assigned exactly in multi-player games from this API contract.'
+      : game.status === 'waiting_setup'
+        ? 'Choose three ship cells on your board, then confirm placement.'
+        : 'Your ship coordinates are only available on the device that placed them.';
+
   els.gameSummary.innerHTML = `
     <div><strong>Game #${game.game_id}</strong> · ${game.status}</div>
     <div class="muted">Grid size: ${game.grid_size} × ${game.grid_size}</div>
     <div class="muted">Players: ${game.players.map((p) => `#${p.player_id} (${p.ships_remaining} ships left)`).join(', ')}</div>
     <div class="muted">Total moves: ${game.total_moves}</div>
-    <div class="muted">Board visibility is limited by the public API spec, so this view uses local setup state and shared move history.</div>
+    <div class="muted">${boardMessage}</div>
   `;
 
   els.playerBoard.innerHTML = ownBoard
@@ -398,7 +500,7 @@ function renderGame(game, moves) {
 
   els.opponentBoards.innerHTML = joined ? `
     <div class="opponent-card">
-      <div class="section-head"><strong>Target Grid</strong><span class="muted">Shared shot history</span></div>
+      <div class="section-head"><strong>Target Grid</strong><span class="muted">Your shots only</span></div>
       ${renderBoardHtml(targetBoard, game.grid_size, { own: false, fireEnabled: myTurn && game.status === 'playing' })}
     </div>
   ` : '<div class="empty-card">Join this game to fire shots.</div>';
@@ -467,13 +569,14 @@ els.refreshLobbyBtn.addEventListener('click', () => {
 els.openGameBtn.addEventListener('click', openEnteredGame);
 els.joinGameBtn.addEventListener('click', joinEnteredGame);
 els.submitShipsBtn.addEventListener('click', submitShips);
-els.refreshLeaderboardBtn.addEventListener('click', loadLeaderboard);
+  els.refreshLeaderboardBtn.addEventListener('click', loadLeaderboard);
 
 renderIdentity();
 if (state.selectedGameId) {
   rememberGame(state.selectedGameId);
   els.gameIdInput.value = String(state.selectedGameId);
 }
+updateUiState();
 loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
 loadLeaderboard();
 if (state.selectedGameId) loadSelectedGame();

@@ -22,6 +22,10 @@ button {
   border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer;
   background: var(--accent); color: white; font-weight: 700;
 }
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 button.secondary { background: #31405f; }
 input {
   background: #0f1728; color: white; border: 1px solid #30415e; border-radius: 10px; padding: 10px 12px;
@@ -47,6 +51,8 @@ input {
 .list-grid, .opponents-grid { display: grid; gap: 12px; }
 .list-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .opponents-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.boards-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.board-panel > p { margin: 6px 0 0; }
 .game-card.active { border-color: var(--accent); }
 .badge {
   display: inline-flex; align-items: center; border-radius: 999px; padding: 8px 12px;
@@ -69,5 +75,12 @@ input {
 .cell.hit { background: #ff6b6b; }
 .cell.selected { outline: 3px solid var(--warn); }
 @media (max-width: 960px) {
-  .hero, .two-col { grid-template-columns: 1fr; display: grid; }
+  .hero, .two-col, .boards-wrap { grid-template-columns: 1fr; display: grid; }
+}
+@media (max-width: 720px) {
+  .placement-bar,
+  .section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
