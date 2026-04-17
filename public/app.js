@@ -404,7 +404,12 @@ function createBoardCells(gridSize, stateByKey = {}) {
   const cells = [];
   for (let row = 0; row < gridSize; row += 1) {
     for (let col = 0; col < gridSize; col += 1) {
-      cells.push({ row, col, state: stateByKey[`${row}:${col}`] || 'empty' });
+      const cellData = stateByKey[`${row}:${col}`];
+      if (cellData && typeof cellData === 'object') {
+        cells.push({ row, col, state: cellData.state || 'empty', locked: Boolean(cellData.locked) });
+      } else {
+        cells.push({ row, col, state: cellData || 'empty', locked: false });
+      }
     }
   }
   return cells;
@@ -456,7 +461,10 @@ function buildOwnBoard(game, joined, moves) {
 function buildTargetBoard(game, moves) {
   const shotMap = {};
   moves.filter((move) => move.player_id === state.playerId).forEach((move) => {
-    shotMap[`${move.row}:${move.col}`] = move.result;
+    shotMap[`${move.row}:${move.col}`] = {
+      state: move.result,
+      locked: true,
+    };
   });
   return createBoardCells(game.grid_size, shotMap);
 }
@@ -526,7 +534,7 @@ function renderBoardHtml(cells, gridSize, options = {}) {
       action = `onclick="toggleShipSelection(${cell.row}, ${cell.col}, ${options.alreadyPlaced ? 'true' : 'false'})"`;
     } else if (options.fireEnabled) {
       action = `onclick="fireAt(${cell.row}, ${cell.col}, true)"`;
-      if (cell.state === 'hit' || cell.state === 'miss') {
+      if (cell.locked) {
         action = `onclick="showMessage('You already targeted that cell.', 'error')"`;
       }
     }
