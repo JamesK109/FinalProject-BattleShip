@@ -257,21 +257,62 @@ async function loadSelectedGame() {
     return;
   }
   try {
-    const [game, boards, moves] = await Promise.all([
+    const [game, moves] = await Promise.all([
       api(`api/games/${state.selectedGameId}`),
-      state.playerId ? api(`api/games/${state.selectedGameId}/boards?player_id=${state.playerId}`) : Promise.resolve({ boards: [], grid_size: 0 }),
       api(`api/games/${state.selectedGameId}/moves`),
     ]);
-    renderGame(game, boards, moves);
+    renderGame(game, moves);
   } catch (err) {
     showMessage(`Could not load game: ${err.message}`, 'error');
   }
 }
 
-function renderGame(game, boardsData, moves) {
+function createBoardCells(gridSize, stateByKey = {}) {
+  const cells = [];
+  for (let row = 0; row < gridSize; row += 1) {
+    for (let col = 0; col < gridSize; col += 1) {
+      cells.push({ row, col, state: stateByKey[`${row}:${col}`] || 'water' });
+    }
+  }
+  return cells;
+}
+
+function inferWinnerId(game) {
+  if (game.status !== 'finished') return null;
+  const survivors = game.players.filter((player) => player.ships_remaining > 0);
+  return survivors.length === 1 ? survivors[0].player_id : null;
+}
+
+function buildOwnBoard(game, joined) {
+  if (!joined || !state.playerId) return null;
+
+  const selectedMap = {};
+  if (game.status === 'waiting_setup') {
+    state.selectedShips.forEach((ship) => {
+      selectedMap[`${ship.row}:${ship.col}`] = 'ship';
+    });
+  }
+
+  return {
+    cells: createBoardCells(game.grid_size, selectedMap),
+    canPlaceShips: game.status === 'waiting_setup',
+  };
+}
+
+function buildTargetBoard(game, moves) {
+  const shotMap = {};
+  moves.forEach((move) => {
+    shotMap[`${move.row}:${move.col}`] = move.result;
+  });
+  return createBoardCells(game.grid_size, shotMap);
+}
+
+function renderGame(game, moves) {
   const myTurn = game.current_turn_player_id === state.playerId;
   const joined = game.players.some((p) => p.player_id === state.playerId);
-  const winnerId = boardsData.winner_id || null;
+  const winnerId = inferWinnerId(game);
+  const ownBoard = buildOwnBoard(game, joined);
+  const targetBoard = buildTargetBoard(game, moves);
   els.turnBadge.textContent = !joined
     ? 'Viewing only'
     : game.status === 'finished'
@@ -285,19 +326,19 @@ function renderGame(game, boardsData, moves) {
     <div class="muted">Grid size: ${game.grid_size} × ${game.grid_size}</div>
     <div class="muted">Players: ${game.players.map((p) => `#${p.player_id} (${p.ships_remaining} ships left)`).join(', ')}</div>
     <div class="muted">Total moves: ${game.total_moves}</div>
+    <div class="muted">Board visibility is limited by the public API spec, so this view uses local setup state and shared move history.</div>
   `;
 
-  const myBoard = boardsData.boards.find((b) => b.is_viewer);
-  const alreadyPlaced = myBoard && myBoard.cells.some((c) => c.state === 'ship' || c.state === 'hit' || c.state === 'miss');
-  els.playerBoard.innerHTML = myBoard ? renderBoardHtml(myBoard.cells, boardsData.grid_size, { own: true, alreadyPlaced }) : '<div class="empty-card">Join this game to place ships and play.</div>';
+  els.playerBoard.innerHTML = ownBoard
+    ? renderBoardHtml(ownBoard.cells, game.grid_size, { own: true, alreadyPlaced: !ownBoard.canPlaceShips })
+    : '<div class="empty-card">Join this game to place ships and play.</div>';
 
-  const others = boardsData.boards.filter((b) => !b.is_viewer);
-  els.opponentBoards.innerHTML = others.length ? others.map((board) => `
+  els.opponentBoards.innerHTML = joined ? `
     <div class="opponent-card">
-      <div class="section-head"><strong>Player #${board.player_id}</strong><span class="muted">${board.ships_remaining} ships left</span></div>
-      ${renderBoardHtml(board.cells, boardsData.grid_size, { own: false, fireEnabled: myTurn && game.status === 'playing' })}
+      <div class="section-head"><strong>Target Grid</strong><span class="muted">Shared shot history</span></div>
+      ${renderBoardHtml(targetBoard, game.grid_size, { own: false, fireEnabled: myTurn && game.status === 'playing' })}
     </div>
-  `).join('') : '<div class="empty-card">No opponents yet.</div>';
+  ` : '<div class="empty-card">Join this game to fire shots.</div>';
 
   els.moveHistory.innerHTML = moves.length ? moves.map((move) => `
     <div class="history-item">
