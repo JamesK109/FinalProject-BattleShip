@@ -121,14 +121,20 @@ if (($segments[0] ?? null) === 'api') {
 
       <section class="panel stack">
         <div class="section-head">
-          <h2>2. Lobby</h2>
-          <button id="refreshLobbyBtn" class="secondary">Refresh now</button>
+          <h2>2. Games</h2>
+          <button id="refreshLobbyBtn" class="secondary">Refresh known games</button>
         </div>
         <div class="inline-form compact">
           <label>Grid size <input id="gridSizeInput" type="number" min="5" max="15" value="5"></label>
           <label>Max players <input id="maxPlayersInput" type="number" min="2" max="10" value="2"></label>
           <button id="createGameBtn">Create game</button>
         </div>
+        <div class="inline-form compact">
+          <label>Game ID <input id="gameIdInput" type="number" min="1" step="1" placeholder="Enter game id"></label>
+          <button id="openGameBtn" class="secondary">Open game</button>
+          <button id="joinGameBtn">Join game</button>
+        </div>
+        <p class="muted">The API spec does not expose a public game list. This client tracks games you create, join, or open by id.</p>
         <div id="lobbyList" class="list-grid"></div>
       </section>
 

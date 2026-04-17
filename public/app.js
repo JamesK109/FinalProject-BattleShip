@@ -3,6 +3,7 @@ const state = {
   username: localStorage.getItem('battleship_username') || '',
   selectedGameId: Number(localStorage.getItem('battleship_game_id') || 0),
   selectedShips: [],
+  knownGameIds: JSON.parse(localStorage.getItem('battleship_known_game_ids') || '[]').filter((id) => Number.isInteger(id) && id > 0),
   lobbyTimer: null,
 };
 
@@ -14,6 +15,9 @@ const els = {
   refreshLobbyBtn: document.getElementById('refreshLobbyBtn'),
   gridSizeInput: document.getElementById('gridSizeInput'),
   maxPlayersInput: document.getElementById('maxPlayersInput'),
+  gameIdInput: document.getElementById('gameIdInput'),
+  openGameBtn: document.getElementById('openGameBtn'),
+  joinGameBtn: document.getElementById('joinGameBtn'),
   lobbyList: document.getElementById('lobbyList'),
   identityName: document.getElementById('identityName'),
   identityMeta: document.getElementById('identityMeta'),
@@ -52,6 +56,31 @@ function clearMessage() {
   els.message.textContent = '';
 }
 
+function persistKnownGames() {
+  localStorage.setItem('battleship_known_game_ids', JSON.stringify(state.knownGameIds));
+}
+
+function rememberGame(gameId) {
+  const id = Number(gameId);
+  if (!Number.isInteger(id) || id <= 0) return;
+  state.knownGameIds = [id, ...state.knownGameIds.filter((existingId) => existingId !== id)].slice(0, 12);
+  persistKnownGames();
+}
+
+function forgetGame(gameId) {
+  state.knownGameIds = state.knownGameIds.filter((id) => id !== gameId);
+  persistKnownGames();
+}
+
+function getRequestedGameId() {
+  const gameId = Number(els.gameIdInput.value);
+  if (!Number.isInteger(gameId) || gameId <= 0) {
+    showMessage('Enter a valid game ID.', 'error');
+    return 0;
+  }
+  return gameId;
+}
+
 function setIdentity(playerId, username) {
   state.playerId = playerId;
   state.username = username;
@@ -85,7 +114,7 @@ async function registerPlayer() {
     els.usernameInput.value = '';
     showMessage(`Registered ${username} successfully.`, 'success');
     loadLeaderboard();
-    loadLobby();
+    loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
   } catch (err) {
     showMessage(err.message, 'error');
   }
@@ -108,6 +137,8 @@ async function createGame() {
     });
     state.selectedGameId = data.game_id;
     localStorage.setItem('battleship_game_id', String(data.game_id));
+    rememberGame(data.game_id);
+    els.gameIdInput.value = String(data.game_id);
     state.selectedShips = [];
     showMessage(`Game #${data.game_id} created. Waiting for players.`, 'success');
     await loadLobby();
@@ -129,6 +160,8 @@ async function joinGame(gameId) {
     });
     state.selectedGameId = gameId;
     localStorage.setItem('battleship_game_id', String(gameId));
+    rememberGame(gameId);
+    els.gameIdInput.value = String(gameId);
     state.selectedShips = [];
     showMessage(`Joined game #${gameId}.`, 'success');
     await loadLobby();
@@ -138,23 +171,45 @@ async function joinGame(gameId) {
   }
 }
 
+async function joinEnteredGame() {
+  const gameId = getRequestedGameId();
+  if (!gameId) return;
+  await joinGame(gameId);
+}
+
 async function loadLobby() {
-  try {
-    const games = await api('api/games');
-    renderLobby(games);
-  } catch (err) {
-    showMessage(`Could not load lobby: ${err.message}`, 'error');
+  if (!state.knownGameIds.length) {
+    renderLobby([]);
+    return;
   }
+
+  const results = await Promise.all(state.knownGameIds.map(async (gameId) => {
+    try {
+      return await api(`api/games/${gameId}`);
+    } catch (err) {
+      if (err.message === 'Game does not exist') {
+        forgetGame(gameId);
+        if (state.selectedGameId === gameId) {
+          state.selectedGameId = 0;
+          localStorage.removeItem('battleship_game_id');
+        }
+        return null;
+      }
+      throw new Error(`Game #${gameId}: ${err.message}`);
+    }
+  }));
+
+  renderLobby(results.filter(Boolean));
 }
 
 function renderLobby(games) {
   if (!games.length) {
-    els.lobbyList.innerHTML = '<div class="empty-card">No games yet. Create one to start.</div>';
+    els.lobbyList.innerHTML = '<div class="empty-card">No known games yet. Create one or enter a game ID to open or join it.</div>';
     return;
   }
   els.lobbyList.innerHTML = games.map((game) => {
     const joined = game.players.some((p) => p.player_id === state.playerId);
-    const canJoin = game.status === 'waiting_setup' && game.joined_players < game.max_players && !joined;
+    const canJoin = game.status === 'waiting_setup' && !joined;
     return `
       <div class="game-card ${state.selectedGameId === game.game_id ? 'active' : ''}">
         <div class="section-head">
@@ -162,7 +217,7 @@ function renderLobby(games) {
           <span class="badge">${game.status}</span>
         </div>
         <div class="muted">Grid: ${game.grid_size} × ${game.grid_size}</div>
-        <div class="muted">Players: ${game.joined_players}/${game.max_players}</div>
+        <div class="muted">Players joined: ${game.players.length}</div>
         <div class="muted">Moves: ${game.total_moves}</div>
         <div class="card-actions">
           <button onclick="selectGame(${game.game_id})" class="secondary">Open</button>
@@ -176,9 +231,17 @@ window.joinGame = joinGame;
 window.selectGame = async function (gameId) {
   state.selectedGameId = gameId;
   localStorage.setItem('battleship_game_id', String(gameId));
+  rememberGame(gameId);
+  els.gameIdInput.value = String(gameId);
   state.selectedShips = [];
   await loadSelectedGame();
 };
+
+async function openEnteredGame() {
+  const gameId = getRequestedGameId();
+  if (!gameId) return;
+  await window.selectGame(gameId);
+}
 
 function toggleShipSelection(row, col, alreadyPlaced) {
   if (alreadyPlaced) {
@@ -390,7 +453,7 @@ async function loadLeaderboard() {
 function startAutoRefresh() {
   if (state.lobbyTimer) clearInterval(state.lobbyTimer);
   state.lobbyTimer = setInterval(() => {
-    loadLobby();
+    loadLobby().catch((err) => showMessage(`Could not refresh games: ${err.message}`, 'error'));
     loadLeaderboard();
     if (state.selectedGameId) loadSelectedGame();
   }, 3000);
@@ -398,12 +461,20 @@ function startAutoRefresh() {
 
 els.registerBtn.addEventListener('click', registerPlayer);
 els.createGameBtn.addEventListener('click', createGame);
-els.refreshLobbyBtn.addEventListener('click', loadLobby);
+els.refreshLobbyBtn.addEventListener('click', () => {
+  loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
+});
+els.openGameBtn.addEventListener('click', openEnteredGame);
+els.joinGameBtn.addEventListener('click', joinEnteredGame);
 els.submitShipsBtn.addEventListener('click', submitShips);
 els.refreshLeaderboardBtn.addEventListener('click', loadLeaderboard);
 
 renderIdentity();
-loadLobby();
+if (state.selectedGameId) {
+  rememberGame(state.selectedGameId);
+  els.gameIdInput.value = String(state.selectedGameId);
+}
+loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
 loadLeaderboard();
 if (state.selectedGameId) loadSelectedGame();
 startAutoRefresh();
