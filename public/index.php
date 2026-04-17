@@ -153,7 +153,7 @@ if (($segments[0] ?? null) === 'api') {
             <div id="playerBoard" class="board"></div>
           </div>
           <div>
-            <h3>Opponent boards</h3>
+            <h3>Target board</h3>
             <div id="opponentBoards" class="opponents-grid"></div>
           </div>
         </div>

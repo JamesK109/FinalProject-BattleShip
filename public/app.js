@@ -271,7 +271,7 @@ function createBoardCells(gridSize, stateByKey = {}) {
   const cells = [];
   for (let row = 0; row < gridSize; row += 1) {
     for (let col = 0; col < gridSize; col += 1) {
-      cells.push({ row, col, state: stateByKey[`${row}:${col}`] || 'water' });
+      cells.push({ row, col, state: stateByKey[`${row}:${col}`] || 'empty' });
     }
   }
   return cells;
@@ -367,7 +367,9 @@ function renderBoardHtml(cells, gridSize, options = {}) {
     }
     return `<button class="${cls}" ${action} title="${cell.row},${cell.col}"></button>`;
   }).join('');
-  return `<div class="board-grid" style="${style}">${html}</div>`;
+  return cells.length
+    ? `<div class="board-grid" style="${style}">${html}</div>`
+    : '<div class="empty-card">Board unavailable.</div>';
 }
 
 async function loadLeaderboard() {
