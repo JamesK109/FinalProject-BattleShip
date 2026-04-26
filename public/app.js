@@ -694,7 +694,7 @@ function buildOwnBoard(game, joined, moves) {
 
 function buildTargetBoard(game, moves) {
   const shotMap = {};
-  moves.filter((move) => move.player_id === state.playerId).forEach((move) => {
+  moves.forEach((move) => {
     shotMap[`${move.row}:${move.col}`] = {
       state: move.result,
       locked: true,
@@ -741,7 +741,7 @@ function renderGame(game, moves) {
 
   els.opponentBoards.innerHTML = joined ? `
     <div class="opponent-card">
-      <div class="section-head"><strong>Target Grid</strong><span class="muted">Your shots</span></div>
+      <div class="section-head"><strong>Target Grid</strong><span class="muted">All shots</span></div>
       ${renderBoardHtml(targetBoard, game.grid_size, { own: false, fireEnabled: myTurn && game.status === 'playing' })}
     </div>
   ` : '<div class="empty-card">Join to fire.</div>';
@@ -775,7 +775,7 @@ function renderBoardHtml(cells, gridSize, options = {}) {
     } else if (options.fireEnabled) {
       action = `onclick="fireAt(${cell.row}, ${cell.col}, true)"`;
       if (cell.locked) {
-        action = `onclick="showMessage('You already targeted that cell.', 'error')"`;
+        action = `onclick="showMessage('That cell has already been fired on.', 'error')"`;
       }
     }
     return `<button class="${cls}" ${action} title="${cell.row},${cell.col}"></button>`;
