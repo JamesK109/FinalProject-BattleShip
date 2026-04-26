@@ -25,6 +25,32 @@ if ($method === 'POST' && count($segments) === 1) {
 }
 
 if ($method === 'GET' && count($segments) === 1) {
+    $playerId = $_GET['player_id'] ?? null;
+    if ($playerId !== null) {
+        $playerId = requirePositiveInt($playerId, 'player_id');
+        ensurePlayerExists($db, $playerId);
+
+        $rows = fetchAllRows(
+            $db,
+            "SELECT g.id, g.max_players
+             FROM games g
+             INNER JOIN game_players gp ON gp.game_id = g.id
+             WHERE gp.player_id = ?
+             ORDER BY g.id DESC
+             LIMIT 50",
+            [$playerId]
+        );
+
+        $games = [];
+        foreach ($rows as $row) {
+            $detail = buildGameDetail($db, (int)$row['id']);
+            $detail['max_players'] = (int)$row['max_players'];
+            $games[] = $detail;
+        }
+
+        respond($games);
+    }
+
     $rows = fetchAllRows(
         $db,
         "SELECT g.id, g.max_players

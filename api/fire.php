@@ -45,10 +45,10 @@ if ($alreadyFired) {
 $hitShip = fetchOne(
     $db,
     'SELECT player_id FROM ships
-     WHERE game_id = ? AND row = ? AND col = ? AND player_id != ?
+     WHERE game_id = ? AND row = ? AND col = ?
      ORDER BY player_id ASC
      LIMIT 1',
-    [$gameId, $row, $col, $playerId]
+    [$gameId, $row, $col]
 );
 
 $targetPlayerId = $hitShip ? (int)$hitShip['player_id'] : null;
@@ -63,6 +63,16 @@ if ($result === 'hit') {
 }
 
 $alivePlayers = getAlivePlayerIds($db, $gameId);
+if (count($alivePlayers) === 0) {
+    finalizeFinishedGame($db, $gameId, $playerId);
+    respond([
+        'result' => $result,
+        'next_player_id' => null,
+        'game_status' => 'finished',
+        'winner_id' => $playerId,
+    ]);
+}
+
 if (count($alivePlayers) === 1) {
     $winnerId = $alivePlayers[0];
     finalizeFinishedGame($db, $gameId, $winnerId);

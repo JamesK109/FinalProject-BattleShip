@@ -119,7 +119,6 @@ function countRemainingShips(PDO $db, int $gameId, int $playerId) {
            AND NOT EXISTS (
                SELECT 1 FROM moves m
                WHERE m.game_id = s.game_id
-                 AND m.target_player_id = s.player_id
                  AND m.row = s.row
                  AND m.col = s.col
                  AND m.result = "hit"

@@ -164,7 +164,20 @@ if (($segments[0] ?? null) === 'api') {
           <label>Available <select id="availableGamesSelect"></select></label>
           <button id="joinAvailableGameBtn" class="secondary">Join selected</button>
         </div>
-        <div id="lobbyList" class="list-grid"></div>
+        <div class="game-sections">
+          <section class="game-section">
+            <div class="section-head compact-head">
+              <h3>My games</h3>
+            </div>
+            <div id="myGamesList" class="list-grid"></div>
+          </section>
+          <section class="game-section">
+            <div class="section-head compact-head">
+              <h3>Joinable games</h3>
+            </div>
+            <div id="joinableGamesList" class="list-grid"></div>
+          </section>
+        </div>
       </section>
       </section>
 

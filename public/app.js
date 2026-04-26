@@ -36,7 +36,8 @@ const els = {
   availableGamesWrap: document.getElementById('availableGamesWrap'),
   availableGamesSelect: document.getElementById('availableGamesSelect'),
   joinAvailableGameBtn: document.getElementById('joinAvailableGameBtn'),
-  lobbyList: document.getElementById('lobbyList'),
+  myGamesList: document.getElementById('myGamesList'),
+  joinableGamesList: document.getElementById('joinableGamesList'),
   identityName: document.getElementById('identityName'),
   identityMeta: document.getElementById('identityMeta'),
   activeGameSection: document.getElementById('activeGameSection'),
@@ -193,7 +194,7 @@ function playerName(playerId) {
 function describeStatus(game, joined, myTurn, winnerId) {
   if (!game) return 'No game selected';
   if (game.status === 'waiting_setup') return 'Waiting for players to place ships';
-  if (game.status === 'finished') return `Finished. Winner: ${playerName(winnerId)}`;
+  if (game.status === 'finished') return winnerId ? `Finished. Winner: ${playerName(winnerId)}` : 'Finished. No winner';
   if (!joined) return `In progress. Current turn: ${playerName(game.current_turn_player_id)}`;
   return myTurn ? `Your turn, ${state.username}` : `${playerName(game.current_turn_player_id)}'s turn`;
 }
@@ -417,13 +418,30 @@ async function joinSelectedAvailableGame() {
 }
 
 async function loadLobby() {
-  await loadAvailableGames();
-  if (!state.knownGameIds.length) {
-    renderLobby([]);
-    updateUiState();
-    return;
-  }
+  const [myGames, joinableGames] = await Promise.all([
+    loadMyGames(),
+    loadAvailableGames(),
+  ]);
+  renderMyGames(myGames);
+  renderJoinableGames(joinableGames);
+  renderAvailableGames(joinableGames);
+  updateUiState();
+}
 
+async function loadMyGames() {
+  if (!state.playerId) return [];
+  try {
+    const games = await api(`api/games?player_id=${state.playerId}`);
+    if (!Array.isArray(games)) return [];
+    games.forEach((game) => rememberGame(game.game_id));
+    return games;
+  } catch {
+    return loadKnownGames();
+  }
+}
+
+async function loadKnownGames() {
+  if (!state.knownGameIds.length) return [];
   const results = await Promise.all(state.knownGameIds.map(async (gameId) => {
     try {
       return await api(`api/games/${gameId}`);
@@ -440,22 +458,19 @@ async function loadLobby() {
     }
   }));
 
-  renderLobby(results.filter(Boolean));
-  updateUiState();
+  return results
+    .filter(Boolean)
+    .filter((game) => game.players.some((player) => player.player_id === state.playerId));
 }
 
 async function loadAvailableGames() {
   try {
     const games = await api('api/games');
-    if (!Array.isArray(games) || !games.length) {
-      renderAvailableGames([]);
-      return;
-    }
-
+    if (!Array.isArray(games)) return [];
     games.forEach((game) => rememberGame(game.game_id));
-    renderAvailableGames(games);
+    return games;
   } catch {
-    renderAvailableGames([]);
+    return [];
   }
 }
 
@@ -473,31 +488,44 @@ function renderAvailableGames(games) {
   els.joinAvailableGameBtn.disabled = !state.playerId || joinableGames.length === 0;
 }
 
-function renderLobby(games) {
+function renderMyGames(games) {
   if (!games.length) {
-    els.lobbyList.innerHTML = '<div class="empty-card">No games yet.</div>';
+    els.myGamesList.innerHTML = '<div class="empty-card">No games yet.</div>';
     return;
   }
-  els.lobbyList.innerHTML = games.map((game) => {
-    const joined = game.players.some((p) => p.player_id === state.playerId);
-    const canJoin = game.status === 'waiting_setup' && !joined;
-    const currentName = playerName(game.current_turn_player_id);
-    return `
-      <div class="game-card ${state.selectedGameId === game.game_id ? 'active' : ''}">
-        <div class="section-head">
-          <strong>Game #${game.game_id}</strong>
-          <span class="badge">${game.status}</span>
-        </div>
-        <div class="muted">Grid: ${game.grid_size} × ${game.grid_size}</div>
-        <div class="muted">Players: ${game.players.map((p) => escapeHtml(playerName(p.player_id))).join(', ')}</div>
-        <div class="muted">Turn: ${escapeHtml(game.status === 'playing' ? currentName : 'not started')}</div>
-        <div class="muted">Moves: ${game.total_moves}</div>
-        <div class="card-actions">
-          ${joined ? `<button onclick="selectGame(${game.game_id})" class="secondary">Open</button>` : ''}
-          ${canJoin ? `<button onclick="joinGame(${game.game_id})">Join</button>` : ''}
-        </div>
-      </div>`;
-  }).join('');
+  els.myGamesList.innerHTML = games.map((game) => renderGameCard(game, 'mine')).join('');
+}
+
+function renderJoinableGames(games) {
+  const joinableGames = games.filter((game) => {
+    const joined = game.players.some((player) => player.player_id === state.playerId);
+    return game.status === 'waiting_setup' && !joined;
+  });
+
+  if (!joinableGames.length) {
+    els.joinableGamesList.innerHTML = '<div class="empty-card">No joinable games.</div>';
+    return;
+  }
+  els.joinableGamesList.innerHTML = joinableGames.map((game) => renderGameCard(game, 'joinable')).join('');
+}
+
+function renderGameCard(game, mode) {
+  const currentName = playerName(game.current_turn_player_id);
+  const players = game.max_players ? `${game.players.length}/${game.max_players}` : String(game.players.length);
+  return `
+    <div class="game-card ${state.selectedGameId === game.game_id ? 'active' : ''}">
+      <div class="section-head">
+        <strong>Game #${game.game_id}</strong>
+        <span class="badge">${game.status}</span>
+      </div>
+      <div class="muted">Grid: ${game.grid_size} × ${game.grid_size}</div>
+      <div class="muted">Players: ${players}</div>
+      <div class="muted">Turn: ${escapeHtml(game.status === 'playing' ? currentName : 'not started')}</div>
+      <div class="card-actions">
+        ${mode === 'mine' ? `<button onclick="selectGame(${game.game_id})" class="secondary">Open</button>` : ''}
+        ${mode === 'joinable' ? `<button onclick="joinGame(${game.game_id})">Join</button>` : ''}
+      </div>
+    </div>`;
 }
 
 window.joinGame = joinGame;
@@ -566,7 +594,7 @@ async function fireAt(row, col, allowed) {
       body: JSON.stringify({ player_id: state.playerId, row, col }),
     });
     if (data.game_status === 'finished') {
-      showMessage(`Game over. Winner: ${playerName(data.winner_id)}.`, 'success');
+      showMessage(data.winner_id ? `Game over. Winner: ${playerName(data.winner_id)}.` : 'Game over. No winner.', 'success');
       showGameOver(data.winner_id);
     } else {
       showMessage(`Shot result: ${data.result}. Next player: ${playerName(data.next_player_id)}.`, 'success');
@@ -581,7 +609,7 @@ async function fireAt(row, col, allowed) {
 window.fireAt = fireAt;
 
 function showGameOver(winnerId) {
-  els.gameOverText.textContent = `Winner: ${playerName(winnerId)}.`;
+  els.gameOverText.textContent = winnerId ? `Winner: ${playerName(winnerId)}.` : 'No winner.';
   els.gameOverModal.classList.remove('hidden');
 }
 
@@ -645,14 +673,13 @@ function buildOwnBoard(game, joined, moves) {
   const otherPlayers = game.players.filter((player) => player.player_id !== state.playerId);
   const exactIncoming = otherPlayers.length === 1;
   moves
-    .filter((move) => move.player_id !== state.playerId)
     .forEach((move) => {
       const key = `${move.row}:${move.col}`;
       if (shipMap[key] === 'ship' && move.result === 'hit') {
         shipMap[key] = 'hit';
         return;
       }
-      if (exactIncoming && move.result === 'miss' && !shipMap[key]) {
+      if (move.player_id !== state.playerId && exactIncoming && move.result === 'miss' && !shipMap[key]) {
         shipMap[key] = 'miss';
       }
     });
