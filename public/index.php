@@ -98,30 +98,53 @@ if (($segments[0] ?? null) === 'api') {
       <div>
         <p class="eyebrow">CPSC 3750 · Phase 2</p>
         <h1>Battleship Client</h1>
-        <p class="sub">Register, join open games, place 3 ships, fire on your turn, track move history, and watch all boards update live.</p>
+        <p class="sub">A focused client for connecting to a Battleship API, managing games, and playing turn by turn.</p>
       </div>
       <div class="hero-card">
         <div class="small-label">Current player</div>
         <div id="identityName" class="identity-name">Not registered</div>
         <div id="identityMeta" class="muted">Stored in localStorage so refreshes keep your player.</div>
+        <button id="logoutBtn" class="ghost identity-action hidden">Logout</button>
       </div>
     </header>
 
+    <section class="server-banner">
+      <div>
+        <div class="small-label">Connected server</div>
+        <div id="serverDisplay" class="server-url">Loading default server...</div>
+      </div>
+      <div class="server-controls">
+        <input id="serverUrlInput" type="url" placeholder="https://example.com/api">
+        <button id="saveServerBtn" class="secondary">Use server</button>
+        <button id="resetServerBtn" class="ghost">Reset</button>
+      </div>
+    </section>
+
     <div id="message" class="message hidden"></div>
 
+    <nav class="page-tabs" aria-label="Application sections">
+      <button class="tab-btn active" data-page="setupPage">Player</button>
+      <button class="tab-btn" data-page="gamesPage">Games</button>
+      <button class="tab-btn" data-page="playPage">Play</button>
+      <button class="tab-btn" data-page="statsPage">Stats</button>
+    </nav>
+
     <main class="layout">
+      <section id="setupPage" class="page active">
       <section id="registerSection" class="panel stack">
-        <h2>1. Register player</h2>
+        <h2>Player</h2>
         <div class="inline-form">
           <input id="usernameInput" type="text" maxlength="30" placeholder="Enter username (letters, numbers, underscore)">
-          <button id="registerBtn">Register</button>
+          <button id="registerBtn">Register or Login</button>
         </div>
-        <p class="muted">The client stores your player id locally so you stay signed in after refresh.</p>
+        <p class="muted">If the username already exists, the client logs in as that player using the existing API data.</p>
+      </section>
       </section>
 
+      <section id="gamesPage" class="page">
       <section id="gamesSection" class="panel stack">
         <div class="section-head">
-          <h2>2. Games</h2>
+          <h2>Games</h2>
           <button id="refreshLobbyBtn" class="secondary">Refresh known games</button>
         </div>
         <div class="inline-form compact">
@@ -137,10 +160,12 @@ if (($segments[0] ?? null) === 'api') {
         <p class="muted">The API spec does not expose a public game list. This client tracks games you create, join, or open by id.</p>
         <div id="lobbyList" class="list-grid"></div>
       </section>
+      </section>
 
+      <section id="playPage" class="page">
       <section id="activeGameSection" class="panel stack game-panel">
         <div class="section-head">
-          <h2>3. Active game</h2>
+          <h2>Active game</h2>
           <div id="turnBadge" class="badge">No game selected</div>
         </div>
         <div id="gameSummary" class="summary-box muted">Join or create a game to begin.</div>
@@ -166,25 +191,38 @@ if (($segments[0] ?? null) === 'api') {
           </div>
         </div>
       </section>
+      </section>
 
+      <section id="statsPage" class="page">
       <section class="panel stack two-col">
         <div>
           <div class="section-head">
-            <h2>4. Move history</h2>
+            <h2>Move history</h2>
             <span class="muted">With timestamps</span>
           </div>
           <div id="moveHistory" class="history-list"></div>
         </div>
         <div>
           <div class="section-head">
-            <h2>5. Leaderboard</h2>
+            <h2>Leaderboard</h2>
             <button id="refreshLeaderboardBtn" class="secondary">Refresh</button>
           </div>
           <div id="leaderboard" class="history-list"></div>
         </div>
       </section>
+      </section>
     </main>
   </div>
+  <div id="gameOverModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+    <div class="modal">
+      <h2 id="gameOverTitle">Game finished</h2>
+      <p id="gameOverText" class="sub"></p>
+      <button id="closeGameOverBtn">Close</button>
+    </div>
+  </div>
+  <script>
+    window.DEFAULT_API_BASE_URL = <?= json_encode(rtrim(trim((string)@file_get_contents(__DIR__ . '/../base_url.txt')), '/') . '/api') ?>;
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
