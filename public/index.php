@@ -98,36 +98,41 @@ if (($segments[0] ?? null) === 'api') {
       <div>
         <p class="eyebrow">CPSC 3750 · Phase 2</p>
         <h1>Battleship Client</h1>
-        <p class="sub">A focused client for connecting to a Battleship API, managing games, and playing turn by turn.</p>
+        <p class="sub">Connect. Join. Play.</p>
       </div>
       <div class="hero-card">
         <div class="small-label">Current player</div>
         <div id="identityName" class="identity-name">Not registered</div>
-        <div id="identityMeta" class="muted">Stored in localStorage so refreshes keep your player.</div>
-        <button id="logoutBtn" class="ghost identity-action hidden">Logout</button>
+        <div id="identityMeta" class="muted">Saved locally.</div>
+        <div class="identity-actions">
+          <button id="themeToggleBtn" class="ghost" type="button">Light mode</button>
+          <button id="logoutBtn" class="ghost hidden" type="button">Logout</button>
+        </div>
       </div>
     </header>
 
-    <section class="server-banner">
-      <div>
-        <div class="small-label">Connected server</div>
-        <div id="serverDisplay" class="server-url">Loading default server...</div>
-      </div>
-      <div class="server-controls">
-        <input id="serverUrlInput" type="url" placeholder="https://example.com/api">
-        <button id="saveServerBtn" class="secondary">Use server</button>
-        <button id="resetServerBtn" class="ghost">Reset</button>
-      </div>
-    </section>
+    <div class="sticky-bar">
+      <section class="server-banner">
+        <div>
+          <div class="small-label">Connected server</div>
+          <div id="serverDisplay" class="server-url">Loading default server...</div>
+        </div>
+        <div class="server-controls">
+          <input id="serverUrlInput" type="url" placeholder="https://example.com/api">
+          <button id="saveServerBtn" class="secondary">Use server</button>
+          <button id="resetServerBtn" class="ghost">Reset</button>
+        </div>
+      </section>
+
+      <nav class="page-tabs" aria-label="Application sections">
+        <button class="tab-btn active" data-page="setupPage">Player</button>
+        <button class="tab-btn" data-page="gamesPage">Games</button>
+        <button class="tab-btn" data-page="playPage">Play</button>
+        <button class="tab-btn" data-page="statsPage">Stats</button>
+      </nav>
+    </div>
 
     <div id="message" class="message hidden"></div>
-
-    <nav class="page-tabs" aria-label="Application sections">
-      <button class="tab-btn active" data-page="setupPage">Player</button>
-      <button class="tab-btn" data-page="gamesPage">Games</button>
-      <button class="tab-btn" data-page="playPage">Play</button>
-      <button class="tab-btn" data-page="statsPage">Stats</button>
-    </nav>
 
     <main class="layout">
       <section id="setupPage" class="page active">
@@ -137,7 +142,6 @@ if (($segments[0] ?? null) === 'api') {
           <input id="usernameInput" type="text" maxlength="30" placeholder="Enter username (letters, numbers, underscore)">
           <button id="registerBtn">Register or Login</button>
         </div>
-        <p class="muted">If the username already exists, the client logs in as that player using the existing API data.</p>
       </section>
       </section>
 
@@ -157,7 +161,10 @@ if (($segments[0] ?? null) === 'api') {
           <button id="openGameBtn" class="secondary">Open game</button>
           <button id="joinGameBtn">Join game</button>
         </div>
-        <p class="muted">The API spec does not expose a public game list. This client tracks games you create, join, or open by id.</p>
+        <div id="availableGamesWrap" class="inline-form compact hidden">
+          <label>Available games <select id="availableGamesSelect"></select></label>
+          <button id="joinAvailableGameBtn" class="secondary">Join selected</button>
+        </div>
         <div id="lobbyList" class="list-grid"></div>
       </section>
       </section>
@@ -181,12 +188,10 @@ if (($segments[0] ?? null) === 'api') {
         <div class="boards-wrap">
           <div class="board-panel">
             <h3>Your board</h3>
-            <p class="muted">Ships are shown in blue. Opponent hits are red. Opponent misses are gray when the API makes them identifiable.</p>
             <div id="playerBoard" class="board"></div>
           </div>
           <div class="board-panel">
             <h3>Target board</h3>
-            <p class="muted">This board shows only your shots. Click an untargeted cell here when it is your turn.</p>
             <div id="opponentBoards" class="opponents-grid"></div>
           </div>
         </div>

@@ -24,6 +24,29 @@ if ($method === 'POST' && count($segments) === 1) {
     ], 201);
 }
 
+if ($method === 'GET' && count($segments) === 1) {
+    $rows = fetchAllRows(
+        $db,
+        "SELECT g.id, g.max_players
+         FROM games g
+         LEFT JOIN game_players gp ON gp.game_id = g.id
+         WHERE g.status = 'waiting_setup'
+         GROUP BY g.id
+         HAVING COUNT(gp.player_id) < g.max_players
+         ORDER BY g.id DESC
+         LIMIT 50"
+    );
+
+    $games = [];
+    foreach ($rows as $row) {
+        $detail = buildGameDetail($db, (int)$row['id']);
+        $detail['max_players'] = (int)$row['max_players'];
+        $games[] = $detail;
+    }
+
+    respond($games);
+}
+
 if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
     $gameId = requirePositiveInt($segments[1] ?? null, 'id');
     $game = syncGameState($db, $gameId);

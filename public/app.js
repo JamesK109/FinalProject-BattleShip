@@ -4,6 +4,7 @@ const state = {
   selectedGameId: Number(localStorage.getItem('battleship_game_id') || 0),
   apiBaseUrl: localStorage.getItem('battleship_api_base_url') || '',
   defaultApiBaseUrl: '',
+  theme: localStorage.getItem('battleship_theme') || 'dark',
   selectedShips: [],
   knownGameIds: JSON.parse(localStorage.getItem('battleship_known_game_ids') || '[]').filter((id) => Number.isInteger(id) && id > 0),
   shipCache: JSON.parse(localStorage.getItem('battleship_ship_cache') || '{}'),
@@ -23,6 +24,7 @@ const els = {
   registerSection: document.getElementById('registerSection'),
   usernameInput: document.getElementById('usernameInput'),
   registerBtn: document.getElementById('registerBtn'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
   gamesSection: document.getElementById('gamesSection'),
   createGameBtn: document.getElementById('createGameBtn'),
@@ -32,6 +34,9 @@ const els = {
   gameIdInput: document.getElementById('gameIdInput'),
   openGameBtn: document.getElementById('openGameBtn'),
   joinGameBtn: document.getElementById('joinGameBtn'),
+  availableGamesWrap: document.getElementById('availableGamesWrap'),
+  availableGamesSelect: document.getElementById('availableGamesSelect'),
+  joinAvailableGameBtn: document.getElementById('joinAvailableGameBtn'),
   lobbyList: document.getElementById('lobbyList'),
   identityName: document.getElementById('identityName'),
   identityMeta: document.getElementById('identityMeta'),
@@ -109,6 +114,18 @@ async function loadDefaultServerUrl() {
 function renderServerBanner() {
   els.serverDisplay.textContent = state.apiBaseUrl || state.defaultApiBaseUrl || 'No server selected';
   els.serverUrlInput.value = state.apiBaseUrl || '';
+}
+
+function applyTheme() {
+  const light = state.theme === 'light';
+  document.body.classList.toggle('light', light);
+  els.themeToggleBtn.textContent = light ? 'Dark mode' : 'Light mode';
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('battleship_theme', state.theme);
+  applyTheme();
 }
 
 function saveServerUrl() {
@@ -230,11 +247,11 @@ function setIdentity(playerId, username) {
 function renderIdentity() {
   if (state.playerId) {
     els.identityName.textContent = state.username;
-    els.identityMeta.textContent = 'Identity is stored in localStorage for refresh-safe gameplay.';
+    els.identityMeta.textContent = 'Saved locally.';
     els.logoutBtn.classList.remove('hidden');
   } else {
     els.identityName.textContent = 'Not registered';
-    els.identityMeta.textContent = 'Register a player to create or join games.';
+    els.identityMeta.textContent = 'Register or login.';
     els.logoutBtn.classList.add('hidden');
   }
 }
@@ -271,6 +288,7 @@ function updateUiState(game = null) {
   els.createGameBtn.disabled = !hasIdentity;
   els.openGameBtn.disabled = !hasIdentity;
   els.joinGameBtn.disabled = !hasIdentity;
+  els.joinAvailableGameBtn.disabled = !hasIdentity || !els.availableGamesSelect.value;
   els.refreshLobbyBtn.disabled = !hasIdentity;
 
   if (!game || !joined) {
@@ -391,7 +409,17 @@ async function joinEnteredGame() {
   await joinGame(gameId);
 }
 
+async function joinSelectedAvailableGame() {
+  const gameId = Number(els.availableGamesSelect.value);
+  if (!Number.isInteger(gameId) || gameId <= 0) {
+    showMessage('Choose a game or enter an ID.', 'error');
+    return;
+  }
+  await joinGame(gameId);
+}
+
 async function loadLobby() {
+  await loadAvailableGames();
   if (!state.knownGameIds.length) {
     renderLobby([]);
     updateUiState();
@@ -418,9 +446,38 @@ async function loadLobby() {
   updateUiState();
 }
 
+async function loadAvailableGames() {
+  try {
+    const games = await api('api/games');
+    if (!Array.isArray(games) || !games.length) {
+      renderAvailableGames([]);
+      return;
+    }
+
+    games.forEach((game) => rememberGame(game.game_id));
+    renderAvailableGames(games);
+  } catch {
+    renderAvailableGames([]);
+  }
+}
+
+function renderAvailableGames(games) {
+  const joinableGames = games.filter((game) => {
+    const joined = game.players.some((player) => player.player_id === state.playerId);
+    return game.status === 'waiting_setup' && !joined;
+  });
+
+  setHidden(els.availableGamesWrap, joinableGames.length === 0);
+  els.availableGamesSelect.innerHTML = joinableGames.map((game) => {
+    const players = game.players.length;
+    return `<option value="${game.game_id}">Game #${game.game_id} · ${players}/${game.max_players || '?'} players</option>`;
+  }).join('');
+  els.joinAvailableGameBtn.disabled = !state.playerId || joinableGames.length === 0;
+}
+
 function renderLobby(games) {
   if (!games.length) {
-    els.lobbyList.innerHTML = '<div class="empty-card">No known games yet. Create one or enter a game ID to open or join it.</div>';
+    els.lobbyList.innerHTML = '<div class="empty-card">No known games.</div>';
     return;
   }
   els.lobbyList.innerHTML = games.map((game) => {
@@ -637,14 +694,14 @@ function renderGame(game, moves) {
   els.turnBadge.textContent = describeStatus(game, joined, myTurn, winnerId);
 
   const boardMessage = !joined
-    ? 'Join this game to place ships and fire.'
+    ? 'Join to play.'
     : ownBoard && ownBoard.hasStoredShips
       ? ownBoard.exactIncoming
-        ? 'Your board shows your ships plus incoming hits and misses.'
-        : 'Your board shows your ships and confirmed incoming hits. Misses cannot be assigned exactly in multi-player games from this API contract.'
+        ? 'Ships, hits, and misses.'
+        : 'Ships and confirmed hits.'
       : game.status === 'waiting_setup'
-        ? 'Choose three ship cells on your board, then confirm placement.'
-        : 'Your ship coordinates are only available on the device that placed them.';
+        ? 'Place three ships.'
+        : 'Ships are stored on this device.';
 
   const currentTurn = game.status === 'playing' ? playerName(game.current_turn_player_id) : 'Not active';
   els.gameSummary.innerHTML = `
@@ -661,14 +718,14 @@ function renderGame(game, moves) {
 
   els.playerBoard.innerHTML = ownBoard
     ? renderBoardHtml(ownBoard.cells, game.grid_size, { own: true, alreadyPlaced: !ownBoard.canPlaceShips })
-    : '<div class="empty-card">Join this game to place ships and play.</div>';
+    : '<div class="empty-card">Join to play.</div>';
 
   els.opponentBoards.innerHTML = joined ? `
     <div class="opponent-card">
-      <div class="section-head"><strong>Target Grid</strong><span class="muted">Your shots only</span></div>
+      <div class="section-head"><strong>Target Grid</strong><span class="muted">Your shots</span></div>
       ${renderBoardHtml(targetBoard, game.grid_size, { own: false, fireEnabled: myTurn && game.status === 'playing' })}
     </div>
-  ` : '<div class="empty-card">Join this game to fire shots.</div>';
+  ` : '<div class="empty-card">Join to fire.</div>';
 
   els.moveHistory.innerHTML = moves.length ? moves.map((move) => `
     <div class="history-item">
@@ -747,6 +804,7 @@ function startAutoRefresh() {
 }
 
 els.registerBtn.addEventListener('click', registerPlayer);
+els.themeToggleBtn.addEventListener('click', toggleTheme);
 els.logoutBtn.addEventListener('click', logoutPlayer);
 els.saveServerBtn.addEventListener('click', saveServerUrl);
 els.resetServerBtn.addEventListener('click', resetServerUrl);
@@ -757,11 +815,13 @@ els.refreshLobbyBtn.addEventListener('click', () => {
 });
 els.openGameBtn.addEventListener('click', openEnteredGame);
 els.joinGameBtn.addEventListener('click', joinEnteredGame);
+els.joinAvailableGameBtn.addEventListener('click', joinSelectedAvailableGame);
 els.submitShipsBtn.addEventListener('click', submitShips);
 els.refreshLeaderboardBtn.addEventListener('click', loadLeaderboard);
 els.closeGameOverBtn.addEventListener('click', () => els.gameOverModal.classList.add('hidden'));
 
 async function init() {
+  applyTheme();
   renderIdentity();
   await loadDefaultServerUrl();
   if (state.selectedGameId) {
