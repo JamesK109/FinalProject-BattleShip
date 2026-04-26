@@ -628,10 +628,23 @@ async function loadSelectedGame() {
       api(`api/games/${state.selectedGameId}`),
       api(`api/games/${state.selectedGameId}/moves`),
     ]);
+    await syncOwnShips(game);
     renderGame(game, moves);
   } catch (err) {
     updateUiState();
     showMessage(`Could not load game: ${err.message}`, 'error');
+  }
+}
+
+async function syncOwnShips(game) {
+  if (!state.playerId || !game.players.some((player) => player.player_id === state.playerId)) return;
+  try {
+    const ships = await api(`api/games/${game.game_id}/ships?player_id=${state.playerId}`);
+    if (Array.isArray(ships)) {
+      storeShips(game.game_id, state.playerId, ships);
+    }
+  } catch {
+    // Other teams' servers may not expose this helper; keep using local cache.
   }
 }
 

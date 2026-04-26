@@ -103,6 +103,26 @@ if ($method === 'POST' && ($segments[2] ?? null) === 'join') {
     respond(['status' => 'joined']);
 }
 
+if ($method === 'GET' && ($segments[2] ?? null) === 'ships') {
+    $gameId = requirePositiveInt($segments[1] ?? null, 'id');
+    ensureGameExists($db, $gameId);
+
+    $playerId = requirePositiveInt($_GET['player_id'] ?? null, 'player_id');
+    ensurePlayerExists($db, $playerId);
+    ensurePlayerInGame($db, $gameId, $playerId);
+
+    $ships = fetchAllRows(
+        $db,
+        'SELECT row, col FROM ships WHERE game_id = ? AND player_id = ? ORDER BY row ASC, col ASC',
+        [$gameId, $playerId]
+    );
+
+    respond(array_map(fn($ship) => [
+        'row' => (int)$ship['row'],
+        'col' => (int)$ship['col'],
+    ], $ships));
+}
+
 if ($method === 'GET' && count($segments) === 2) {
     $gameId = requirePositiveInt($segments[1] ?? null, 'id');
     respond(buildGameDetail($db, $gameId));
