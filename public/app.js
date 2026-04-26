@@ -32,7 +32,6 @@ const els = {
   gridSizeInput: document.getElementById('gridSizeInput'),
   maxPlayersInput: document.getElementById('maxPlayersInput'),
   gameIdInput: document.getElementById('gameIdInput'),
-  openGameBtn: document.getElementById('openGameBtn'),
   joinGameBtn: document.getElementById('joinGameBtn'),
   availableGamesWrap: document.getElementById('availableGamesWrap'),
   availableGamesSelect: document.getElementById('availableGamesSelect'),
@@ -286,7 +285,6 @@ function updateUiState(game = null) {
   setHidden(els.placementBar, !canPlaceShips);
 
   els.createGameBtn.disabled = !hasIdentity;
-  els.openGameBtn.disabled = !hasIdentity;
   els.joinGameBtn.disabled = !hasIdentity;
   els.joinAvailableGameBtn.disabled = !hasIdentity || !els.availableGamesSelect.value;
   els.refreshLobbyBtn.disabled = !hasIdentity;
@@ -477,7 +475,7 @@ function renderAvailableGames(games) {
 
 function renderLobby(games) {
   if (!games.length) {
-    els.lobbyList.innerHTML = '<div class="empty-card">No known games.</div>';
+    els.lobbyList.innerHTML = '<div class="empty-card">No games yet.</div>';
     return;
   }
   els.lobbyList.innerHTML = games.map((game) => {
@@ -495,7 +493,7 @@ function renderLobby(games) {
         <div class="muted">Turn: ${escapeHtml(game.status === 'playing' ? currentName : 'not started')}</div>
         <div class="muted">Moves: ${game.total_moves}</div>
         <div class="card-actions">
-          <button onclick="selectGame(${game.game_id})" class="secondary">Open</button>
+          ${joined ? `<button onclick="selectGame(${game.game_id})" class="secondary">Open</button>` : ''}
           ${canJoin ? `<button onclick="joinGame(${game.game_id})">Join</button>` : ''}
         </div>
       </div>`;
@@ -512,12 +510,6 @@ window.selectGame = async function (gameId) {
   showPage('playPage');
   await loadSelectedGame();
 };
-
-async function openEnteredGame() {
-  const gameId = getRequestedGameId();
-  if (!gameId) return;
-  await window.selectGame(gameId);
-}
 
 function toggleShipSelection(row, col, alreadyPlaced) {
   if (alreadyPlaced) {
@@ -813,7 +805,6 @@ els.createGameBtn.addEventListener('click', createGame);
 els.refreshLobbyBtn.addEventListener('click', () => {
   loadLobby().catch((err) => showMessage(`Could not load games: ${err.message}`, 'error'));
 });
-els.openGameBtn.addEventListener('click', openEnteredGame);
 els.joinGameBtn.addEventListener('click', joinEnteredGame);
 els.joinAvailableGameBtn.addEventListener('click', joinSelectedAvailableGame);
 els.submitShipsBtn.addEventListener('click', submitShips);

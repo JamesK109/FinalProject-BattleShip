@@ -149,7 +149,7 @@ if (($segments[0] ?? null) === 'api') {
       <section id="gamesSection" class="panel stack">
         <div class="section-head">
           <h2>Games</h2>
-          <button id="refreshLobbyBtn" class="secondary">Refresh known games</button>
+          <button id="refreshLobbyBtn" class="secondary">Refresh</button>
         </div>
         <div class="inline-form compact">
           <label>Grid size <input id="gridSizeInput" type="number" min="5" max="15" value="5"></label>
@@ -158,11 +158,10 @@ if (($segments[0] ?? null) === 'api') {
         </div>
         <div class="inline-form compact">
           <label>Game ID <input id="gameIdInput" type="number" min="1" step="1" placeholder="Enter game id"></label>
-          <button id="openGameBtn" class="secondary">Open game</button>
           <button id="joinGameBtn">Join game</button>
         </div>
         <div id="availableGamesWrap" class="inline-form compact hidden">
-          <label>Available games <select id="availableGamesSelect"></select></label>
+          <label>Available <select id="availableGamesSelect"></select></label>
           <button id="joinAvailableGameBtn" class="secondary">Join selected</button>
         </div>
         <div id="lobbyList" class="list-grid"></div>
